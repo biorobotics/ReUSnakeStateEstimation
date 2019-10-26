@@ -1,0 +1,23 @@
+{
+    "configurations": [
+        {
+            "browse": {
+                "databaseFilename": "",
+                "limitSymbolsToIncludedHeaders": true
+            },
+            "includePath": [
+                "/home/biorobotics/sy_ws/new_ros_ws/devel/include",
+                "/home/biorobotics/sy_ws/slam_ws/devel/include",
+                "/opt/ros/kinetic/include",
+                "/home/biorobotics/sy_ws/snake_ws/src/ReUSnakeStateEstimation/VINS-Fusion/camera_models/include",
+                "/usr/include"
+            ],
+            "name": "Linux",
+            "intelliSenseMode": "gcc-x64",
+            "compilerPath": "/usr/bin/gcc",
+            "cStandard": "c11",
+            "cppStandard": "c++17"
+        }
+    ],
+    "version": 4
+}

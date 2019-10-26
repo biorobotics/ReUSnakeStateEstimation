@@ -1,0 +1,149 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="n6">
+
+  <xacro:property name="PI" value="3.1415926535897931" />
+  <xacro:property name="sqrt3" value="1.732051" />
+  <xacro:property name="mountRadius" value="0.175976" />
+  <xacro:property name="mountHeight" value="0.032525" />
+
+  <!-- load macros for modules -->
+  <xacro:include filename="./n6_left_leg.xacro"/>
+  <xacro:include filename="./n6_right_leg.xacro"/>
+  
+  <!-- Import all Gazebo-customization elements -->
+  <xacro:include filename="./n6.gazebo" />
+
+  <!-- ************************* ROBOT DEFINITION ************************* -->
+
+  <xacro:property name="L1_1" value="base1" />
+  <xacro:property name="L1_2" value="shoulder1" />
+  <xacro:property name="L1_3" value="elbow1" />
+
+  <xacro:property name="L2_1" value="base2" />
+  <xacro:property name="L2_2" value="shoulder2" />
+  <xacro:property name="L2_3" value="elbow2" />
+
+  <xacro:property name="L3_1" value="base3" />
+  <xacro:property name="L3_2" value="shoulder3" />
+  <xacro:property name="L3_3" value="elbow3" />
+
+  <xacro:property name="L4_1" value="base4" />
+  <xacro:property name="L4_2" value="shoulder4" />
+  <xacro:property name="L4_3" value="elbow4" />
+
+  <xacro:property name="L5_1" value="base5" />
+  <xacro:property name="L5_2" value="shoulder5" />
+  <xacro:property name="L5_3" value="elbow5" />
+
+  <xacro:property name="L6_1" value="base6" />
+  <xacro:property name="L6_2" value="shoulder6" />
+  <xacro:property name="L6_3" value="elbow6" />
+
+  <link name="kdl_dummy_root" />
+  <joint name="kdl_dummy_root_to_base" type="fixed">
+    <parent link="kdl_dummy_root"/>
+    <child link="base_link"/>
+  </joint>
+  
+
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="0 -2.7756E-17 0.0047625"
+        rpy="0 0 0" />
+      <mass
+        value="0.5" />
+      <inertia
+        ixx="0"
+        ixy="0"
+        ixz="0"
+        iyy="0"
+        iyz="0"
+        izz="0" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://titan6_general_cpp/meshes/N6_base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.89804 0.91765 0.92941 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>left_link1_red
+        <mesh
+          filename="package://titan6_general_cpp/meshes/N6_base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+
+  <!-- leg outputs on the base -->
+  <joint name="leg5_L1_0" type="fixed">
+    <origin
+      xyz="${mountRadius/2} ${mountRadius/2*sqrt3} ${mountHeight}"
+      rpy="0 0 ${PI/3}" />
+    <parent link="base_link" />
+    <child link="leg5_Link0" />
+  </joint>
+
+  <joint name="leg6_L1_0" type="fixed">
+    <origin
+      xyz="${-mountRadius/2} ${mountRadius/2*sqrt3} ${mountHeight}"
+      rpy="0 0 ${PI*2/3}" />
+    <parent link="base_link" />
+    <child link="leg6_Link0" />
+  </joint>
+
+  <joint name="leg3_L1_0" type="fixed">
+    <origin
+      xyz="${mountRadius} 0 ${mountHeight}"
+      rpy="0 0 0" />
+    <parent link="base_link" />
+    <child link="leg3_Link0" />
+  </joint>
+
+  <joint name="leg4_L1_0" type="fixed">
+    <origin
+      xyz="${-mountRadius} 0 ${mountHeight}"
+      rpy="0 0 ${PI}" />
+    <parent link="base_link" />
+    <child link="leg4_Link0" />
+  </joint>
+
+  <joint name="leg1_L1_0" type="fixed">
+    <origin
+      xyz="${mountRadius/2} ${-mountRadius/2*sqrt3} ${mountHeight}"
+      rpy="0 0 ${-PI/3}" />
+    <parent link="base_link" />
+    <child link="leg1_Link0" />
+  </joint>
+
+  <joint name="leg2_L1_0" type="fixed">
+    <origin
+      xyz="${-mountRadius/2} ${-mountRadius/2*sqrt3} ${mountHeight}"
+      rpy="0 0 ${-PI*2/3}" />
+    <parent link="base_link" />
+    <child link="leg2_Link0" />
+  </joint>
+
+  <xacro:left_leg leg="leg1" mod1="${L1_1}" mod2="${L1_2}" mod3="${L1_3}"/>
+  <xacro:left_leg leg="leg3" mod1="${L3_1}" mod2="${L3_2}" mod3="${L3_3}"/>
+  <xacro:left_leg leg="leg5" mod1="${L5_1}" mod2="${L5_2}" mod3="${L5_3}"/>
+
+  <xacro:right_leg leg="leg2" mod1="${L2_1}" mod2="${L2_2}" mod3="${L2_3}"/>
+  <xacro:right_leg leg="leg4" mod1="${L4_1}" mod2="${L4_2}" mod3="${L4_3}"/>  
+  <xacro:right_leg leg="leg6" mod1="${L6_1}" mod2="${L6_2}" mod3="${L6_3}"/>
+
+
+</robot>
