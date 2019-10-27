@@ -32,6 +32,7 @@ amp_mult = ones(1,numModules); % straight
 % TODO: add a bunch of ROS publisher
 % Just use ROS as a visualizer
 rosinit
+tftree = rostf;
 joint_state_msg = rosmessage('sensor_msgs/JointState');
 joint_state_pub = rospublisher('/reusnake/joint_state','sensor_msgs/JointState');
 for i=1:numModules
@@ -40,12 +41,14 @@ end
 joint_state_msg.Position = zeros(1,numModules);
 joint_state_msg.Velocity = zeros(1,numModules);
 joint_state_msg.Effort = zeros(1,numModules);
+
 % send(joint_state_pub, joint_state_msg);
 % How to send TF
-% tfStampedMsg = rosmessage('geometry_msgs/TransformStamped');
-% tfStampedMsg.ChildFrameId = 'wheel';
-% tfStampedMsg.Header.FrameId = 'robot_base';
-% tfStampedMsg.Header.Stamp = rostime('now');
+% now we assume vc and world is aligned
+tfStampedMsg = rosmessage('geometry_msgs/TransformStamped');
+tfStampedMsg.ChildFrameId = 'link0';
+tfStampedMsg.Header.FrameId = 'world';
+tfStampedMsg.Header.Stamp = rostime('now');
 % sendTransform(tftree, tfStampedMsg)
 
 % to calculate virtual chassis
@@ -152,6 +155,17 @@ while on_button ~= 1
 %     virtualChassis(1:3,1:3) = virtualChassis_R;
     virtualChassis(1:3,1:3) = R_average;
     virtualChassis(1:3,4) = CoM';
+    
+    % publish my virtual chassis
+    tfStampedMsg.Transform.Translation.X = CoM(1);
+    tfStampedMsg.Transform.Translation.Y = CoM(2);
+    tfStampedMsg.Transform.Translation.Z = CoM(3);
+    [a,b,c,d] = parts(quatAverage);
+    tfStampedMsg.Transform.Rotation.W = a;
+    tfStampedMsg.Transform.Rotation.X = b;
+    tfStampedMsg.Transform.Rotation.Y = c;
+    tfStampedMsg.Transform.Rotation.Z = d;
+    sendTransform(tftree, tfStampedMsg)
     
     if (init_virtualChassis == 0)
         last_virtualChassis = virtualChassis;

@@ -42,6 +42,8 @@ ros::Publisher marker_arr_pub;
 // body pose of the snake
 geometry_msgs::Pose body_pose;
 
+// tf related
+
 void joint_state_callback(const sensor_msgs::JointStateConstPtr& joint_state) 
 {
   std::map<std::string, double> joint_positions;
@@ -53,6 +55,7 @@ void joint_state_callback(const sensor_msgs::JointStateConstPtr& joint_state)
   builder->SetNamespace("reusnake");
   builder->SetFrameId("world");
   builder->Build(&snake_vis_array);
+  // notice that this body pose is the pose between world frame and the root of the robot (link0 for reusnake)
   builder->SetPose(body_pose);
   builder->SetJointPositions(joint_positions);
   marker_arr_pub.publish(snake_vis_array);
@@ -68,6 +71,7 @@ int main(int argc, char** argv) {
 
   // publisher 
   tf::TransformBroadcaster tf_broadcaster;
+  tf::TransformListener tf_listener;
 
   // robomarker visualizer
   // robot marker 
@@ -84,6 +88,22 @@ int main(int argc, char** argv) {
   /* ROS loop */
   for (int publish_count = 0; nh.ok(); publish_count++)
   {    
+    tf::StampedTransform transform;
+    try{
+      tf_listener.lookupTransform("link0", "world",  
+                                ros::Time(0), transform);
+      body_pose.position.x = transform.getOrigin().x();
+      body_pose.position.y = transform.getOrigin().y();
+      body_pose.position.z = transform.getOrigin().z();    
+      body_pose.orientation.w = transform.getRotation().w();
+      body_pose.orientation.x = transform.getRotation().x();
+      body_pose.orientation.y = transform.getRotation().y();
+      body_pose.orientation.z = transform.getRotation().z();                          
+    }
+    catch (tf::TransformException ex){
+      ROS_ERROR("%s",ex.what());
+      ros::Duration(1.0).sleep();
+    }
     ros::spinOnce();
     loop_rate.sleep();
   }
