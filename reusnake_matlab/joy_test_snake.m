@@ -44,7 +44,9 @@ joint_state_msg.Effort = zeros(1,numModules);
 
 % send(joint_state_pub, joint_state_msg);
 % How to send TF
-% now we assume vc and world is aligned
+% now we assume vc and world is aligned so transformation from world to vc
+% is 0
+% TODO: correct tf chains world -> vc -> link0
 tfStampedMsg = rosmessage('geometry_msgs/TransformStamped');
 tfStampedMsg.ChildFrameId = 'link0';
 tfStampedMsg.Header.FrameId = 'world';
@@ -86,7 +88,11 @@ while on_button ~= 1
 %                voltage: [1x14] [V]
     fbk = [];
     while isempty(fbk)
-        fbk = bot.getNextFeedback(); % get current feedback
+        try
+            fbk = bot.getNextFeedback(); % get current feedback
+        catch
+            fbk = lastFbk;
+        end
         if isempty(fbk)
             disp('No fbk');
         end
@@ -111,6 +117,7 @@ while on_button ~= 1
     % find average quaternion
     quatAverage = meanrot(q_list);
     R_average = rotmat(quatAverage, 'frame');
+    quatAverage_trans = quaternion(R_average', 'rotmat', 'frame');
     
     %% virtual chassis (from old code in Julian's demo)
     xyz_pts = squeeze( g(1:3,4,:) )';
@@ -160,7 +167,7 @@ while on_button ~= 1
     tfStampedMsg.Transform.Translation.X = CoM(1);
     tfStampedMsg.Transform.Translation.Y = CoM(2);
     tfStampedMsg.Transform.Translation.Z = CoM(3);
-    [a,b,c,d] = parts(quatAverage);
+    [a,b,c,d] = parts(quatAverage_trans);
     tfStampedMsg.Transform.Rotation.W = a;
     tfStampedMsg.Transform.Rotation.X = b;
     tfStampedMsg.Transform.Rotation.Y = c;
