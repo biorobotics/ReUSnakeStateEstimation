@@ -1,0 +1,102 @@
+<?xml version="1.0"?>
+<robot
+  name="reusnake" xmlns:xacro="http://www.ros.org/wiki/xacro">  
+  <xacro:include filename="./snake_module.urdf.xacro"/>
+  
+    <link name="link0">
+      <inertial>
+        <origin
+          xyz="0.026 0 0"
+          rpy="0 0 0 " />
+        <mass
+          value="0.2" />
+        <inertia
+          ixx="0.00086666"
+          ixy="0"
+          ixz="0"
+          iyy="0.00086666"
+          iyz="0"
+          izz="0.00086666" />
+      </inertial>
+      <visual>
+        <geometry>
+          <box size="0.052 0.052 0.052"/>
+        </geometry>
+        <material name="blue">
+          <color rgba="0 0 .8 1"/>
+        </material>
+      </visual>
+      <collision>
+        <geometry>
+          <box size="0.052 0.052 0.052"/>
+        </geometry>
+      </collision>
+    </link>
+
+    <joint
+      name="joint1"
+      type="revolute">
+      <origin
+        xyz="0.052 0 0"
+        rpy="0     0 0" />
+      <parent
+        link="link0" />
+      <child
+        link="link1" />
+      <axis
+        xyz="0 0 1" />
+      <dynamics 
+        damping=".1" 
+        friction="0.2"/>
+      <limit 
+        effort="20.0" 
+        lower="${-pi}" 
+        upper="${pi}" 
+        velocity="3.14159265"/>
+    </joint>
+
+  <xacro:reusnake_module id="1" next_id="2" />
+  <xacro:reusnake_module id="2" next_id="3" />
+  <xacro:reusnake_module id="3" next_id="4" />
+  <xacro:reusnake_module id="4" next_id="5" />
+  <xacro:reusnake_module id="5" next_id="6" />
+  <xacro:reusnake_module id="6" next_id="7" />
+  <xacro:reusnake_module id="7" next_id="8" />
+  <xacro:reusnake_module id="8" next_id="9" />
+  <xacro:reusnake_module id="9" next_id="10" />
+  <xacro:reusnake_module id="10" next_id="11" />
+  <xacro:reusnake_module id="11" next_id="12" />
+  <xacro:reusnake_module id="12" next_id="13" />
+  <xacro:reusnake_module id="13" next_id="14" />
+
+  <link name="link14">
+  <inertial>
+  <origin
+      xyz="0.026 0 0"
+      rpy="0 0 0 " />
+  <mass
+      value="0.2" />
+  <inertia
+      ixx="0.00086666"
+      ixy="0"
+      ixz="0"
+      iyy="0.00086666"
+      iyz="0"
+      izz="0.00086666" />
+  </inertial>
+  <visual>
+  <geometry>
+      <box size="0.052 0.052 0.052"/>
+  </geometry>
+  <material name="blue">
+      <color rgba="0 0 .8 1"/>
+  </material>
+  </visual>
+  <collision>
+  <geometry>
+      <box size="0.052 0.052 0.052"/>
+  </geometry>
+  </collision>
+  </link>
+
+</robot>

@@ -31,8 +31,15 @@ amp_mult = ones(1,numModules); % straight
 
 % TODO: add a bunch of ROS publisher
 % Just use ROS as a visualizer
-% joint_state_msg = rosmessage('sensor_msgs/JointState');
-% joint_state_pub = rospublisher('/reusnake/joint_state','sensor_msgs/JointState');
+rosinit
+joint_state_msg = rosmessage('sensor_msgs/JointState');
+joint_state_pub = rospublisher('/reusnake/joint_state','sensor_msgs/JointState');
+for i=1:numModules
+    joint_state_msg.Name{i} = strcat('joint',int2str(i));
+end
+joint_state_msg.Position = zeros(1,numModules);
+joint_state_msg.Velocity = zeros(1,numModules);
+joint_state_msg.Effort = zeros(1,numModules);
 % send(joint_state_pub, joint_state_msg);
 % How to send TF
 % tfStampedMsg = rosmessage('geometry_msgs/TransformStamped');
@@ -85,6 +92,12 @@ while on_button ~= 1
     
     % the order follows the order in Scope
 %     fbk.position % print position to debug 
+    for i=1:numModules
+        joint_state_msg.Position(i) = fbk.position(i);
+    end
+    % send fbk to ros
+    send(joint_state_pub, joint_state_msg);
+    
     % flip position?
     g = snake_fk_cal(fbk.position);
     
@@ -162,11 +175,13 @@ while on_button ~= 1
     cmd.position = commandedAngles;
     
     bot.set(cmd);
+    
  
     pause(0.005); % 200Hz 
 end
 clear all
 close all
+rosshutdown
 
 
 

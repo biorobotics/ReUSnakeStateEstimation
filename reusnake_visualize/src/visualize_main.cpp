@@ -46,6 +46,7 @@ void joint_state_callback(const sensor_msgs::JointStateConstPtr& joint_state)
 {
   std::map<std::string, double> joint_positions;
   for (int i = 0; i< joint_state->position.size(); i++) {
+    // TODO: use name from message
     joint_positions["joint"+std::to_string(i+1)] = joint_state->position[i];
   }
 
@@ -72,7 +73,7 @@ int main(int argc, char** argv) {
   // robot marker 
   marker_arr_pub = nh.advertise<visualization_msgs::MarkerArray>("/reusnake/model", 100);
   urdf::Model model;
-  model.initFile(ros::package::getPath("reusnake_visualize") + "/urdf/m6.urdf");
+  model.initFile(ros::package::getPath("reusnake_visualize") + "/urdf/snake.urdf");
   builder = new robot_markers::Builder(model);
   builder->Init();
 
