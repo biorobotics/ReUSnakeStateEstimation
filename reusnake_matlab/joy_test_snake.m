@@ -101,11 +101,11 @@ while on_button ~= 1
     
     % the order follows the order in Scope
 %     fbk.position % print position to debug 
-    for i=1:numModules
-        joint_state_msg.Position(i) = fbk.position(i);
-    end
-    % send fbk to ros
-    send(joint_state_pub, joint_state_msg);
+%     for i=1:numModules
+%         joint_state_msg.Position(i) = fbk.position(i);
+%     end
+%     % send fbk to ros
+%     send(joint_state_pub, joint_state_msg);
     
     % flip position?
     g = snake_fk_cal(fbk.position);
@@ -164,15 +164,15 @@ while on_button ~= 1
     virtualChassis(1:3,4) = CoM';
     
     % publish my virtual chassis
-    tfStampedMsg.Transform.Translation.X = CoM(1);
-    tfStampedMsg.Transform.Translation.Y = CoM(2);
-    tfStampedMsg.Transform.Translation.Z = CoM(3);
-    [a,b,c,d] = parts(quatAverage_trans);
-    tfStampedMsg.Transform.Rotation.W = a;
-    tfStampedMsg.Transform.Rotation.X = b;
-    tfStampedMsg.Transform.Rotation.Y = c;
-    tfStampedMsg.Transform.Rotation.Z = d;
-    sendTransform(tftree, tfStampedMsg)
+%     tfStampedMsg.Transform.Translation.X = CoM(1);
+%     tfStampedMsg.Transform.Translation.Y = CoM(2);
+%     tfStampedMsg.Transform.Translation.Z = CoM(3);
+%     [a,b,c,d] = parts(quatAverage_trans);
+%     tfStampedMsg.Transform.Rotation.W = a;
+%     tfStampedMsg.Transform.Rotation.X = b;
+%     tfStampedMsg.Transform.Rotation.Y = c;
+%     tfStampedMsg.Transform.Rotation.Z = d;
+%     sendTransform(tftree, tfStampedMsg)
     
     if (init_virtualChassis == 0)
         last_virtualChassis = virtualChassis;

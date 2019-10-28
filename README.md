@@ -23,7 +23,19 @@ solve dependency issues arised in compiling VINS
 ### Basic Usage
 
 1. Make sure your laptop and snake are in the same network. 
+
 2. connect a joystick to your laptop
+
 3. Get into reusnake_matlab and use joy_test_snake.m to drive the snake.
+
 4. You may encounter problems when running joy_test_snake.m because the joystick function of matlab will perform differently on different laptops with different types of joystick (the array "buttons" will have different length). You should be able to easily fix that.
+
 5. roslaunch reusnake_visualize visualize.launch
+
+
+### Todo list
+
+1. Abhimanyu told me someone made a sea snake URDF before. Need to revise our current model
+https://github.com/alexansari101/snake_ws/tree/master/src/snake_control/urdf
+
+2. combine the visualization result of VINS into reusnake_visualize
