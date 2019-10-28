@@ -175,24 +175,24 @@ void Estimator::inputImage(double t, const cv::Mat &_img, const cv::Mat &_img1)
         pubTrackImage(imgTrack, t);
     }
     
-    if(MULTIPLE_THREAD)  
-    {     
-        if(inputImageCnt % 2 == 0)
-        {
-            mBuf.lock();
-            featureBuf.push(make_pair(t, featureFrame));
-            mBuf.unlock();
-        }
-    }
-    else
-    {
-        mBuf.lock();
-        featureBuf.push(make_pair(t, featureFrame));
-        mBuf.unlock();
-        TicToc processTime;
-        processMeasurements();
-        printf("process time: %f\n", processTime.toc());
-    }
+    // if(MULTIPLE_THREAD)  
+    // {     
+    //     if(inputImageCnt % 2 == 0)
+    //     {
+    //         mBuf.lock();
+    //         featureBuf.push(make_pair(t, featureFrame));
+    //         mBuf.unlock();
+    //     }
+    // }
+    // else
+    // {
+    //     mBuf.lock();
+    //     featureBuf.push(make_pair(t, featureFrame));
+    //     mBuf.unlock();
+    //     TicToc processTime;
+    //     processMeasurements();
+    //     printf("process time: %f\n", processTime.toc());
+    // }
     
 }
 
