@@ -1,0 +1,63 @@
+<?xml version="1.0"?>
+
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="snake">
+
+  <!-- *************************** XACRO MACROS *************************** -->
+  <xacro:property name="PI" value="3.1415926535897931" />
+
+  <!-- load macros for modules -->
+  <xacro:include filename="./module_common.xacro"/>
+  <xacro:include filename="./rotary_module.xacro"/>
+  
+
+  <!-- ************************* ROBOT DEFINITION ************************* -->
+  <xacro:property name="S_00" value="joint1" />
+  <xacro:property name="S_01" value="joint2" />
+  <xacro:property name="S_02" value="joint3" />
+  <xacro:property name="S_03" value="joint4" />
+  <xacro:property name="S_04" value="joint5" />
+  <xacro:property name="S_05" value="joint6" />
+  <xacro:property name="S_06" value="joint7" />
+  <xacro:property name="S_07" value="joint8" />
+  <xacro:property name="S_08" value="joint9" />
+  <xacro:property name="S_09" value="joint10" />
+  <xacro:property name="S_10" value="joint11" />
+  <xacro:property name="S_11" value="joint12" />
+  <xacro:property name="S_12" value="joint13" />
+  <xacro:property name="S_13" value="joint14" />
+
+
+  <!-- base body -->
+  <link name="link0" />
+
+  <!-- leg outputs on the base -->
+  <joint name="head__OUTPUT_INTERFACE" type="fixed">
+    <parent link="link0"/>
+    <child link="${S_00}__INPUT_INTERFACE"/>
+    <!-- <origin xyz="${width/2} ${leg_y_offset} ${height/2}" rpy="-${PI/2} 0 -${PI/2}"/> -->
+  </joint>
+  
+  <xacro:rotary_module joint="${S_00}" child="${S_01}"/>
+  <xacro:rotary_module joint="${S_01}" child="${S_02}"/>
+  <xacro:rotary_module joint="${S_02}" child="${S_03}"/>
+  <xacro:rotary_module joint="${S_03}" child="${S_04}"/>
+  <xacro:rotary_module joint="${S_04}" child="${S_05}"/>
+  <xacro:rotary_module joint="${S_05}" child="${S_06}"/>
+  <xacro:rotary_module joint="${S_06}" child="${S_07}"/>
+  <xacro:rotary_module joint="${S_07}" child="${S_08}"/>
+  <xacro:rotary_module joint="${S_08}" child="${S_09}"/>
+  <xacro:rotary_module joint="${S_09}" child="${S_10}"/>
+  <xacro:rotary_module joint="${S_10}" child="${S_11}"/>
+  <xacro:rotary_module joint="${S_11}" child="${S_12}"/>
+  <xacro:rotary_module joint="${S_12}" child="${S_13}"/>
+
+  <!-- first half of joint + collar -->
+  <xacro:rotary_module_in name="${S_13}__INPUT_INTERFACE"/>
+  <xacro:collar parent="${S_13}__INPUT_INTERFACE"/>
+  <!-- actual rotary joint component: -->
+  <xacro:rotary_module_joint parent="${S_13}__INPUT_INTERFACE" name="${S_13}" child="${S_13}__OUTPUT_BODY"/>
+  <!-- second half of joint -->
+  <xacro:rotary_module_out name="${S_13}__OUTPUT_BODY"/>
+
+  
+</robot>

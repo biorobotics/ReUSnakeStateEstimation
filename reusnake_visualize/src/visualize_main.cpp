@@ -77,7 +77,7 @@ int main(int argc, char** argv) {
   // robot marker 
   marker_arr_pub = nh.advertise<visualization_msgs::MarkerArray>("/reusnake/model", 100);
   urdf::Model model;
-  model.initFile(ros::package::getPath("reusnake_visualize") + "/urdf/snake.urdf");
+  model.initFile(ros::package::getPath("reusnake_visualize") + "/urdf/sea_snake.urdf");
   builder = new robot_markers::Builder(model);
   builder->Init();
 
