@@ -110,15 +110,6 @@ while on_button ~= 1
     % flip position?
     g = snake_fk_cal(fbk.position);
     
-    %% average rotation
-    % convert rotations to quaternion
-    R_list = g(1:3,1:3,:);
-    q_list = quaternion(R_list, 'rotmat', 'frame');
-    % find average quaternion
-    quatAverage = meanrot(q_list);
-    R_average = rotmat(quatAverage, 'frame');
-    quatAverage_trans = quaternion(R_average', 'rotmat', 'frame');
-    
     %% virtual chassis (from old code in Julian's demo)
     xyz_pts = squeeze( g(1:3,4,:) )';
     % Find and shift to the center of mass.
@@ -155,6 +146,14 @@ while on_button ~= 1
         % Permute the axes and eigenvalues accordingly.
         virtualChassis_R = V;   
     end
+    
+    %% my virtual chassis average rotation
+    % convert rotations to quaternion
+    R_list = g(1:3,1:3,:);
+    q_list = quaternion(R_list, 'rotmat', 'frame');
+    % find average quaternion
+    quatAverage = meanrot(q_list);
+    R_average = rotmat(quatAverage, 'frame');
 
     % Make the full Virtual Chassis transformation matrix
     virtualChassis = eye(4);
@@ -164,9 +163,12 @@ while on_button ~= 1
     virtualChassis(1:3,4) = CoM';
     
     % publish my virtual chassis
-    tfStampedMsg.Transform.Translation.X = CoM(1);
-    tfStampedMsg.Transform.Translation.Y = CoM(2);
-    tfStampedMsg.Transform.Translation.Z = CoM(3);
+    inv_tran = virtualChassis(1:3,4);
+    tfStampedMsg.Transform.Translation.X = inv_tran(1);
+    tfStampedMsg.Transform.Translation.Y = inv_tran(2);
+    tfStampedMsg.Transform.Translation.Z = inv_tran(3);
+    
+    quatAverage_trans = quaternion(virtualChassis(1:3,1:3), 'rotmat', 'frame');
     [a,b,c,d] = parts(quatAverage_trans);
     tfStampedMsg.Transform.Rotation.W = a;
     tfStampedMsg.Transform.Rotation.X = b;
