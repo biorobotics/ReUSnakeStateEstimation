@@ -40,9 +40,9 @@ class HebiRobotBase : public RobotBase {
     std::mutex hebi_fbk_lock_;
 
     // cmd used for control robot
-    hebi::GroupCommand cmd_;
-    hebi::GroupCommand saved_cmd_;
-    hebi::GroupCommand saved_stance_cmd_;   
+    hebi::GroupCommand* cmd_;
+    hebi::GroupCommand* saved_cmd_;
+    hebi::GroupCommand* saved_stance_cmd_;   
 };
 
 }

@@ -25,8 +25,8 @@ void RobotBase::gait_sidewinding(double t) {
   // sidewinding parameters
   double wS = 0.5;
   double wT= 4;
-  double A_even = 1.1;
-  double A_odd = .9;
+  double A_even = 0.6;
+  double A_odd = .8;
   double delta = M_PI/4; // right
   // delta = -pi/4; // left
   double beta_odd = 0;

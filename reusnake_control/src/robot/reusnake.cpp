@@ -83,7 +83,7 @@ Reusnake::Reusnake(std::shared_ptr<hebi::Group> group, std::shared_ptr<hebi::Gro
       last_fbk_time_ = curr_fbk_time_;
 
 
-      assert(fbk.size() == 14);
+      assert(fbk.size() == numModules);
 
 
       // std::cout << fbk.size() << " fbk angles: ";
