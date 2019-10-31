@@ -20,7 +20,7 @@ catkin_make -DCMAKE_BUILD_TYPE=Release
 
 solve dependency issues arised in compiling VINS
 
-### Basic Usage
+### Basic Usage of Matlab version
 
 1. Make sure your laptop and snake are in the same network. 
 
@@ -32,6 +32,27 @@ solve dependency issues arised in compiling VINS
 
 5. roslaunch reusnake_visualize visualize.launch
 
+### Basic Usage of C++ version 
+
+1. Make sure your laptop and snake are in the same network. 
+
+2. connect a cellphone to biorobotics_local. open Hebi Mobile IO
+
+4. Open controller 
+```shell
+rosrun reusnake_control control -t 0
+```
+
+3. Start to stream from realsense camera
+```shell
+roslaunch realsense2_camera rs_camera_modify.launch 
+rosrun  dynamic_reconfigure dynparam set /camera/stereo_module 'emitter_enabled' false
+```
+
+4. start vins 
+```shell
+roslaunch vins laptop_435.launch
+```
 
 ### Todo list
 
