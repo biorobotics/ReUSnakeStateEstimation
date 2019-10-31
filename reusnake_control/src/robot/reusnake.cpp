@@ -13,7 +13,7 @@ std::unique_ptr<Reusnake> Reusnake::create(ros::NodeHandle &_nh) {
   std::vector<std::string> family;
   
   std::cout<<"look for Reusnake Robot modules on network"<<std::endl;
-  for (int i = 0; i < 14; ++i) {
+  for (int i = 0; i < 13; ++i) {
       names.push_back("RUSnake Module #" + std::to_string(i + 1));
   }
   family = { "RUSNAKE" };  
@@ -30,21 +30,13 @@ std::unique_ptr<Reusnake> Reusnake::create(ros::NodeHandle &_nh) {
   
   assert(group->setCommandLifetimeMs(400));
 
-  // Log everything!
-  std::shared_ptr<hebi::Group> log_group_modules;
-  std::shared_ptr<hebi::Group> log_group_io;
-  log_group_io = lookup.getGroupFromNames({"HEBI"}, {"Mobile IO"}, timeout_ms);
-  log_group_modules = lookup.getGroupFromNames(family, names, timeout_ms);
-
   std::cout<<"Found Reusnake robot modules. Prepare to control the robot..."<<std::endl;
-  return std::unique_ptr<Reusnake>(new Reusnake(group, log_group_io, log_group_modules, _nh));
+  return std::unique_ptr<Reusnake>(new Reusnake(group, _nh));
 }
 
-Reusnake::Reusnake(std::shared_ptr<hebi::Group> group, std::shared_ptr<hebi::Group> log_group_input, std::shared_ptr<hebi::Group> log_group_modules, ros::NodeHandle &_nh) {
+Reusnake::Reusnake(std::shared_ptr<hebi::Group> group, ros::NodeHandle &_nh) {
   
   group_ = group;
-  log_group_input_ = log_group_input;
-  log_group_modules_ = log_group_modules;
   nh = _nh;
 
   if (!setGains() && !setGains()){
@@ -122,6 +114,8 @@ Reusnake::Reusnake(std::shared_ptr<hebi::Group> group, std::shared_ptr<hebi::Gro
 
       imu_pub.publish(imu_msg);
 
+
+      // TODO publish joint state and imu data as rostopic
       // end of group feedback handler
     });  
 

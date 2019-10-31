@@ -22,7 +22,7 @@ class Reusnake : public HebiRobotBase {
     static std::unique_ptr<Reusnake> create(ros::NodeHandle &_nh);
 
     ~Reusnake();
-    Reusnake(std::shared_ptr<hebi::Group> group, std::shared_ptr<hebi::Group> log_group_input, std::shared_ptr<hebi::Group> log_group_modules, ros::NodeHandle &_nh);
+    Reusnake(std::shared_ptr<hebi::Group> group, ros::NodeHandle &_nh);
   
 
   private:

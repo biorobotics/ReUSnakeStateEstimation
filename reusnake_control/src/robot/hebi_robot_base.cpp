@@ -4,7 +4,7 @@ namespace robot {
 
 HebiRobotBase::HebiRobotBase() 
 {
-  numModules = 14;
+  numModules = 13 ;
   cmd_ = new hebi::GroupCommand(numModules);
   saved_cmd_ = new hebi::GroupCommand(numModules);
   saved_stance_cmd_ = new hebi::GroupCommand(numModules);
@@ -71,40 +71,12 @@ bool HebiRobotBase::setGains()
   if (!group_)
     return false;
 
-  hebi::GroupCommand gains(group_->size());
-  std::string gains_file = ros::package::getPath("titan6_general_cpp") + std::string("/resources/gains") + std::to_string(group_->size()) + ".xml";
-  std::cout << "Loading gains from: " << gains_file << std::endl;
-  bool success = gains.readGains(gains_file);
-  return success && group_->sendCommandWithAcknowledgement(gains, 4000);
-}
-
-void HebiRobotBase::setupLogging() {
-  // Set up logging if enabled:
-  // if (log_group_input_ || log_group_modules_)
-  //   std::cout << "Logging to 'logs' directory at " << robot_params_ -> low_log_frequency_hz << "hz with bursts of " << robot_params_ -> high_log_frequency_hz << " hz every 30 minutes." << std::endl;
-
-  // std::string log_name_base;
-  // {
-  //   char standard_file_name[40];
-  //   std::time_t now = std::time(nullptr);
-  //   std::tm* now_tm = std::localtime(&now);
-  //   std::snprintf(standard_file_name, 40, "log_file_%04d-%02d-%02d_%02d.%02d.%02d",
-  //                 1900 + now_tm->tm_year, 1 + now_tm->tm_mon, now_tm->tm_mday, now_tm->tm_hour,
-  //                 now_tm->tm_min, now_tm->tm_sec);
-  //   log_name_base = std::string(standard_file_name);
-  // }
-
-  // if (log_group_input_)
-  // {
-  //   log_group_input_->setFeedbackFrequencyHz(robot_params_ -> low_log_frequency_hz);
-  //   log_group_input_->startLog("logs", log_name_base + "-IO.hebilog");
-  // }
-  // if (log_group_modules_)
-  // {
-  //   log_group_modules_->setFeedbackFrequencyHz(robot_params_ -> low_log_frequency_hz);
-  //   log_group_modules_->startLog("logs", log_name_base + "-HEX.hebilog");
-
-  // }
+  // hebi::GroupCommand gains(group_->size());
+  // std::string gains_file = ros::package::getPath("titan6_general_cpp") + std::string("/resources/gains") + std::to_string(group_->size()) + ".xml";
+  // std::cout << "Loading gains from: " << gains_file << std::endl;
+  // bool success = gains.readGains(gains_file);
+  // return success && group_->sendCommandWithAcknowledgement(gains, 4000);
+  return true;
 }
 
 HebiRobotBase::~HebiRobotBase() {
@@ -112,20 +84,6 @@ HebiRobotBase::~HebiRobotBase() {
       group_->setFeedbackFrequencyHz(0);
       group_->clearFeedbackHandlers();
     }
-
-    // if (log_group_input_) {
-    //   log_group_input_->stopLog();
-    //   log_group_input_->setFeedbackFrequencyHz(0);
-    // }
-
-    // if (log_group_modules_) {
-    //   log_group_modules_->stopLog();
-    //   log_group_modules_->setFeedbackFrequencyHz(0);
-    // }
-
-    // if (log_group_input_ || log_group_modules_) {
-    //   std::cout << "stopped any active logs" << std::endl;
-    // }
 }
 
 } // end of namespace robot

@@ -158,8 +158,6 @@ int main(int argc, char** argv) {
             gait_t -= 0.004;
           }
 
-          // plan start up trajectory
-          // robot_base -> planStandUpTraj();  
           robot_base -> gait_sidewinding(gait_t);
           robot_base -> sendCommand();       
 

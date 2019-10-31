@@ -23,7 +23,6 @@ class HebiRobotBase : public RobotBase {
     ~HebiRobotBase();
 
     bool setGains();
-    void setupLogging();
 
     virtual void setCommand(const VectorXd* angles, const VectorXd* vels, const VectorXd* accels);
     virtual void saveCommand();
@@ -34,8 +33,6 @@ class HebiRobotBase : public RobotBase {
   protected:
     // we need hebi API to control hebi robot
     std::shared_ptr<hebi::Group> group_;
-    std::shared_ptr<hebi::Group> log_group_input_;
-    std::shared_ptr<hebi::Group> log_group_modules_;
 
     std::mutex hebi_fbk_lock_;
 

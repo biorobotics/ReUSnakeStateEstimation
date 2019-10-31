@@ -48,11 +48,11 @@ void RobotBase::gait_sidewinding(double t) {
 
   setCommand( &angles, &vels, &torques);
 
-  std::cout << "cmd angles: ";
-  for (int i = 0; i < numModules; ++i) {
-    std::cout << angles(i) << "\t";
-  }
-  std::cout << std::endl;
+  // std::cout << "cmd angles: ";
+  // for (int i = 0; i < numModules; ++i) {
+  //   std::cout << angles(i) << "\t";
+  // }
+  // std::cout << std::endl;
 }
 
 
