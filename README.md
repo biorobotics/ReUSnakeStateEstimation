@@ -1,6 +1,6 @@
 ReUSnakeStateEstimation
 
-The general idea: Use a Matlab script/ROS code to control snake and read feedback. Send feedback to ROS using Matlab ROS toolbox. Use reusnake_visualize to visualize the snake in Rviz.
+The general idea: Use a Matlab script/ROS code to control snake and read feedback. Send feedback out as ROS topics. Use reusnake_visualize to visualize the snake in Rviz.
 Use VINS-fusion to get visual odometry. We need to modify VINS-fusion to use additional information from snake sensors to improve the state estimation performance. 
 
 ### Install 
@@ -25,7 +25,7 @@ cd ..
 catkin_make -DCMAKE_BUILD_TYPE=Release
 ```
 
-4. install Ceres because VINS-Fusion need this tool for VIO (http://ceres-solver.org/installation.html)
+4. install Ceres because VINS-Fusion needs this tool for VIO (http://ceres-solver.org/installation.html)
 
 5. pull the main code base and compile
 ```shell
@@ -34,8 +34,6 @@ git clone https://github.com/biorobotics/ReUSnakeStateEstimation.git
 cd ..
 catkin_make -DCMAKE_BUILD_TYPE=Release
 ```
-
-solve dependency issues arised in compiling VINS
 
 ### Basic Usage of Matlab version
 
@@ -49,7 +47,7 @@ solve dependency issues arised in compiling VINS
 
 5. roslaunch reusnake_visualize visualize.launch
 
-### Basic Usage of C++ version 
+### Basic Usage of C++ version with VINS
 
 1. Make sure your laptop and snake are in the same network. 
 
