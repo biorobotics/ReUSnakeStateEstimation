@@ -1,18 +1,35 @@
 ReUSnakeStateEstimation
 
-The general idea: Use a Matlab script to control snake and read feedback. Send feedback to ROS using Matlab ROS toolbox. Use reusnake_visualize to visualize the snake in Rviz.
-Use VINS-fusion to get visual odometry.
-
-If VINS-fusion can work alone, we are happy. If not, we need to modify VINS-fusion to use additional information from snake sensors to improve the state estimation performance. 
+The general idea: Use a Matlab script/ROS code to control snake and read feedback. Send feedback to ROS using Matlab ROS toolbox. Use reusnake_visualize to visualize the snake in Rviz.
+Use VINS-fusion to get visual odometry. We need to modify VINS-fusion to use additional information from snake sensors to improve the state estimation performance. 
 
 ### Install 
+1. create a ROS workspace 
 ```shell
 mkdir -p snake_ws/src
 cd snake_ws/src
 catkin_init_workspace
 cd ..
 catkin_make
-cd src
+```
+
+2. install realsense SDK and ros package according to https://github.com/IntelRealSense/librealsense/blob/master/doc/distribution_linux.md
+and
+https://github.com/IntelRealSense/realsense-ros
+
+3. For Ubuntu kinetic, there is no build-in tranform_graph support. Install it from source:
+```shell
+cd snake_ws/src
+git clone https://github.com/jstnhuang/transform_graph
+cd ..
+catkin_make -DCMAKE_BUILD_TYPE=Release
+```
+
+4. install Ceres because VINS-Fusion need this tool for VIO (http://ceres-solver.org/installation.html)
+
+5. pull the main code base and compile
+```shell
+cd snake_ws/src
 git clone https://github.com/biorobotics/ReUSnakeStateEstimation.git
 cd ..
 catkin_make -DCMAKE_BUILD_TYPE=Release
