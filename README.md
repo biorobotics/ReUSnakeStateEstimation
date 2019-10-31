@@ -20,7 +20,7 @@ https://github.com/IntelRealSense/realsense-ros
 3. For Ubuntu kinetic, there is no build-in tranform_graph support. Install it from source:
 ```shell
 cd snake_ws/src
-git clone https://github.com/jstnhuang/transform_graph
+git clone https://github.com/jstnhuang/transform_graph.git
 cd ..
 catkin_make -DCMAKE_BUILD_TYPE=Release
 ```
