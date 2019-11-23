@@ -210,9 +210,6 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
       }
     }
 
-    // Matrix approximating rotational velocities of module in VC frame
-    // (see (15) in "Robust State Estimation")
-    //Matrix3d velocity_matrix = R*prev_R;
     Matrix3d R_dot = (R - prev_R)/dt;
     Matrix3d velocity_matrix = -R*R_dot.transpose();
     
