@@ -57,7 +57,7 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
   if (s == 0) {
     q_t = q_t_1;
   } else {
-    q_t = (I*cos(s) + 0.5*omega*sin(s)/wmag)*q_t_1; //current orientation
+    q_t = (I*cos(s) + omega*sin(s)/wmag)*q_t_1; //current orientation
     q_t = q_t/sqrt(q_t.squaredNorm());
   }
 
