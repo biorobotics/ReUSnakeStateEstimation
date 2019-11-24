@@ -72,14 +72,10 @@ int main() {
   u_t.setZero();
 
   printf("Starting filter...\n");
-  for (size_t i = 0; i < 10; i++) {
+  for (size_t i = 0; i < 50; i++) {
     ekf.predict(u_t, dt);
     ekf.correct(z_t);
 
-    // Filter diverges at the same time step, whether or not I normalize here
-    // Vector4d q_t;
-    // get_q(q_t, ekf.x_t);
-    // set_q(ekf.x_t, q_t/sqrt(q_t.squaredNorm()));
     print_orientation(ekf.x_t);
     print_angvel(ekf.x_t);
   }
