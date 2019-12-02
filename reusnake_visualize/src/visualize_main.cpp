@@ -42,6 +42,13 @@ ros::Publisher marker_arr_pub;
 // body pose of the snake
 geometry_msgs::Pose body_pose;
 
+void pose_callback(const geometry_msgs::Pose::ConstPtr& pose) {
+  body_pose.orientation.w = pose->orientation.w;
+  body_pose.orientation.x = pose->orientation.x;
+  body_pose.orientation.y = pose->orientation.y;
+  body_pose.orientation.z = pose->orientation.z;
+}
+
 // tf related
 
 void joint_state_callback(const sensor_msgs::JointStateConstPtr& joint_state) 
@@ -81,13 +88,14 @@ int main(int argc, char** argv) {
   builder = new robot_markers::Builder(model);
   builder->Init();
 
-  //
   ros::Subscriber joint_state_sub = nh.subscribe("/reusnake/joint_state", 1000, joint_state_callback);
+  ros::Subscriber pose_sub = nh.subscribe("/reusnake/pose", 1000, pose_callback);
   
 
   /* ROS loop */
   for (int publish_count = 0; nh.ok(); publish_count++)
   {    
+    /*
     tf::StampedTransform transform;
     try{
       tf_listener.lookupTransform("link0", "world",  
@@ -104,6 +112,8 @@ int main(int argc, char** argv) {
       ROS_ERROR("%s",ex.what());
       ros::Duration(1.0).sleep();
     }
+    */
+    
     ros::spinOnce();
     loop_rate.sleep();
   }

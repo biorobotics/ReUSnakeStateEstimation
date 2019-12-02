@@ -3,6 +3,7 @@
 #include <snake_control_bridge/JointCommand.h>
 #include <sensor_msgs/Imu.h>
 #include <cmath>
+#include <iostream>
 
 /* This file is meant to be used for testing. It simulates the values that
  * snake_control_bridge would publish if the snake were performing a simple
@@ -11,8 +12,6 @@
  */
 
 static const double g = 9.8;
-// works if you only use 2 modules (remember to change the value in
-// estimator_node.cpp as well)
 static const size_t num_modules = 13;
 snake_control_bridge::JointFeedback fbk;
 snake_control_bridge::JointCommand cmd;
@@ -43,8 +42,8 @@ int main(int argc, char **argv) {
       imu.angular_velocity.y = 0;
       imu.angular_velocity.z = 1;
 
-      imu.linear_acceleration.x = g*cos(t - i*M_PI/2 + M_PI);
-      imu.linear_acceleration.y = g*sin(t - i*M_PI/2);
+      imu.linear_acceleration.x = g*sin(t);
+      imu.linear_acceleration.y = g*cos(t);
       imu.linear_acceleration.z = 0;
 
       if (fbk.js.position.size() < num_modules) {

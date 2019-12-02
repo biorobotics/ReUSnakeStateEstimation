@@ -29,12 +29,14 @@ find_package(catkin REQUIRED COMPONENTS
   hebi_cpp_api # hebi cpp api to replace code  
   tf2_kdl
   tf2_ros
+  
+  snake_control_bridge
 )
 
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES titan6_cpp
-  CATKIN_DEPENDS roscpp rospy roslib std_msgs geometry_msgs hebi_cpp_api
+  CATKIN_DEPENDS roscpp rospy roslib std_msgs geometry_msgs hebi_cpp_api snake_control_bridge
 #  DEPENDS system_lib
 )
 
@@ -60,6 +62,13 @@ add_library(hebi_robot_core OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/src/robot/reusnake.cpp
 )
 
+add_library(estimation OBJECT
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/ekf.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/models.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/VirtualChassisKinematics.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/SnakeKinematics.cpp
+)
+
 SET(SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/robot_control.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/input/input_manager_mobile_io.cpp
@@ -74,7 +83,11 @@ target_link_libraries( control
                           ${orocos_kdl_LIBRARIES}
                           ${catkin_LIBRARIES} 
                           )
+add_executable(estimator_node src/estimation/estimator_node.cpp)
+target_link_libraries(estimator_node ${catkin_LIBRARIES} estimation)
 
+add_executable(dummy_snake src/estimation/dummy_snake.cpp)
+target_link_libraries(dummy_snake ${catkin_LIBRARIES})
 
 if (Debug) # add test
 

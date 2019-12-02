@@ -1,8 +1,8 @@
 #include "ros/ros.h"
 #include <snake_control_bridge/JointFeedback.h>
 #include <snake_control_bridge/JointCommand.h>
-#include "models.hpp"
 #include "ekf.hpp"
+#include "models.hpp"
 #include <Eigen/Dense>
 #include <geometry_msgs/Quaternion.h>
 #include <geometry_msgs/Pose.h>
@@ -14,13 +14,10 @@
 
 using namespace Eigen;
 
-// works if you only use 2 modules (remember to change the value in
-// dummy_snake.cpp as well if you're testing with that)
-static const size_t num_modules = 13;
+static const size_t num_modules = 2;
 
 static VectorXd z_t(7*num_modules);
-static EKF ekf(1, 1, &f, &h, &state_length, &sensor_length,
-               &init_state, num_modules);
+static EKF ekf(0.5, 0.05, num_modules);
 static double last_time; // time stamp of last feedback message
 static double t; // time stamp of current feedback message
 static ros::Publisher state_pub;
@@ -28,13 +25,20 @@ static ros::Publisher joint_pub;
 static geometry_msgs::Pose pose;
 static sensor_msgs::JointState joint_state;
 
-// Prints orientation yxy Euler angles
+// Prints orientation of head with zyz Euler angles
 void print_orientation(VectorXd& x_t) {
   Vector4d qvec;
-  get_q(qvec, x_t);
+  get_head(qvec, x_t, num_modules);
   Quaterniond q_t(qvec(0), qvec(1), qvec(2), qvec(3));
-  Vector3d euler = q_t.toRotationMatrix().eulerAngles(1, 0, 1);
-  printf("yxy euler angles: %lf %lf %lf\n", euler(0), euler(1), euler(2));
+  Vector3d euler = q_t.toRotationMatrix().eulerAngles(2, 1, 2);
+  printf("head zyz euler angles: %lf %lf %lf\n", euler(0), euler(1), euler(2));
+}
+
+// Prints angular velocity of vc
+void print_angular_velocity(VectorXd& x_t) {
+  Vector3d w_t;
+  get_w(w_t, x_t);
+  printf("angular velocity of vc: %lf %lf %lf\n", w_t(0), w_t(1), w_t(2));
 }
 
 void handle_feedback(const snake_control_bridge::JointFeedback::ConstPtr& msg) {
@@ -79,7 +83,7 @@ void handle_command(const snake_control_bridge::JointCommand::ConstPtr& msg) {
   ekf.correct(z_t);  
  
   Vector4d q_t;
-  get_q(q_t, ekf.x_t);
+  get_head(q_t, ekf.x_t, num_modules);
   pose.orientation.w = q_t(0);
   pose.orientation.x = q_t(1);
   pose.orientation.y = q_t(2);

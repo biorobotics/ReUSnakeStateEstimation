@@ -47,6 +47,26 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
 void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules);
 
 /*
+* df: computes Jacobian of f
+* F_t: Jacobian of f
+* x_t_1: state to evaluate Jacobian
+* u_t: control signal
+* dt: time step
+* num_modules: number of modules in the snake
+*/
+void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
+        size_t num_modules);
+
+/*
+* dh: computes Jacobian of h
+* H_t: Jacobian of h
+* x_t: state to evaluate Jacobian
+* dt: time step
+* num_modules: number of modules in the snake
+*/
+void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules);
+
+/*
  * state_length: computes the length of the state vector assumed by this
  *               model
  * ARGUMENTS
@@ -127,3 +147,6 @@ double get_gamma(Vector3d& gamma_t, const VectorXd& z_t, size_t i,
 // Set ith gyro vector
 void set_gamma(VectorXd& z_t, const Vector3d& gamma_t, size_t i,
                size_t num_modules);
+
+// Get head orientation (wxyz)
+void get_head(Vector4d& q_head_vec, VectorXd& x_t, size_t num_modules);
