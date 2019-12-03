@@ -89,13 +89,10 @@ int main(int argc, char** argv) {
   builder->Init();
 
   ros::Subscriber joint_state_sub = nh.subscribe("/reusnake/joint_state", 1000, joint_state_callback);
-  ros::Subscriber pose_sub = nh.subscribe("/reusnake/pose", 1000, pose_callback);
-  
 
   /* ROS loop */
   for (int publish_count = 0; nh.ok(); publish_count++)
   {    
-    /*
     tf::StampedTransform transform;
     try{
       tf_listener.lookupTransform("link0", "world",  
@@ -112,7 +109,6 @@ int main(int argc, char** argv) {
       ROS_ERROR("%s",ex.what());
       ros::Duration(1.0).sleep();
     }
-    */
     
     ros::spinOnce();
     loop_rate.sleep();

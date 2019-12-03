@@ -5,7 +5,8 @@
 #include "models.hpp"
 #include <Eigen/Dense>
 #include <geometry_msgs/Quaternion.h>
-#include <geometry_msgs/Pose.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <tf2_ros/transform_broadcaster.h>
 
 /* This file performs estimation by subscribing to commands and feedback
  * from snake_control_bridge. It updates its estimate every time a new
@@ -14,16 +15,15 @@
 
 using namespace Eigen;
 
-static const size_t num_modules = 2;
+static const size_t num_modules = 13;
 
 static VectorXd z_t(7*num_modules);
-static EKF ekf(0.5, 0.05, num_modules);
+static EKF ekf(1, 1, num_modules);
 static double last_time; // time stamp of last feedback message
 static double t; // time stamp of current feedback message
-static ros::Publisher state_pub;
 static ros::Publisher joint_pub;
-static geometry_msgs::Pose pose;
 static sensor_msgs::JointState joint_state;
+static geometry_msgs::TransformStamped pose;
 
 // Prints orientation of head with zyz Euler angles
 void print_orientation(VectorXd& x_t) {
@@ -84,10 +84,10 @@ void handle_command(const snake_control_bridge::JointCommand::ConstPtr& msg) {
  
   Vector4d q_t;
   get_head(q_t, ekf.x_t, num_modules);
-  pose.orientation.w = q_t(0);
-  pose.orientation.x = q_t(1);
-  pose.orientation.y = q_t(2);
-  pose.orientation.z = q_t(3);
+  pose.transform.rotation.w = q_t(0);
+  pose.transform.rotation.x = q_t(1);
+  pose.transform.rotation.y = q_t(2);
+  pose.transform.rotation.z = q_t(3);
 
   for (size_t i = 0; i < num_modules; i++) {
     if (joint_state.position.size() <= i) {
@@ -107,14 +107,22 @@ int main(int argc, char **argv) {
 
   ros::init(argc, argv, "estimator");
   ros::NodeHandle n;
+
+  pose.header.stamp = ros::Time::now();
+  pose.header.frame_id = "world";
+  pose.child_frame_id = "link0";
+  pose.transform.translation.x = 0;
+  pose.transform.translation.y = 0;
+  pose.transform.translation.z = 0;
   
-  state_pub = n.advertise<geometry_msgs::Pose>("/reusnake/pose", 1000);
   joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 1000);
   ros::Subscriber feedback_sub = n.subscribe("snake_feedback", 1000, handle_feedback);
   ros::Subscriber command_sub = n.subscribe("snake_command", 1000, handle_command);
 
+  tf2_ros::TransformBroadcaster pose_br;
+
   while (ros::ok()) {
-    state_pub.publish(pose);
+    pose_br.sendTransform(pose);
     joint_pub.publish(joint_state);
     ros::spinOnce();
   }
