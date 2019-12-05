@@ -121,19 +121,11 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
   
   // Compute snake kinematics in VC
   leftTransformSnake(transforms, vc.inverse()); 
-  leftTransformSnake(prev_transforms, prev_vc.inverse()); 
-  leftTransformSnake(next_transforms, next_vc.inverse()); 
+  //leftTransformSnake(prev_transforms, prev_vc.inverse()); 
+  //leftTransformSnake(next_transforms, next_vc.inverse()); 
+  leftTransformSnake(prev_transforms, vc.inverse()); 
+  leftTransformSnake(next_transforms, vc.inverse()); 
   
-  // Compute inverses
-  transformArray inverse_transforms(num_modules + 1);
-  transformArray prev_inverse_transforms(num_modules + 1);
-  transformArray next_inverse_transforms(num_modules + 1);
-  for (size_t i = 0; i < num_modules + 1; i++) {
-    inverse_transforms[i] = transforms[i].inverse();
-    prev_inverse_transforms[i] = prev_transforms[i].inverse();
-    next_inverse_transforms[i] = next_transforms[i].inverse();
-  }
-
   /* Predict accelerometer and gyro values */
 
   // Invert orientation quaternion and convert it into rotation matrix
@@ -152,7 +144,7 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
 
     // Rotation matrix of VC with respect to current module frame
     Matrix3d R_inv;
-    R_inv = inverse_transforms[i + 1].block(0, 0, 3, 3);
+    R_inv = transforms[i + 1].block(0, 0, 3, 3).transpose();
 
     // Perceived acceleration due to gravity in module frame
     Vector3d a_grav = R_inv*V_t*gvec;
@@ -188,7 +180,7 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
     R = transforms[i + 1].block(0, 0, 3, 3);
 
     Matrix3d R_dot = (R - prev_R)/dt;
-    Matrix3d velocity_matrix = -R*R_dot.transpose();
+    Matrix3d velocity_matrix = -R*(R_dot.transpose());
     
     // Compute angular velocity of VC in module frame
     Vector3d w_t;
@@ -255,8 +247,21 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
   // with respect to previous angular velocities
   F_t.block(7, 7, 3, 3).setIdentity();
 
+  // Joint angles and joint velocities only depend on
+  // previous joint angles and joint velocities
+  
+  // Joint angle Jacobian
+  F_t.block(10, 10, num_modules, num_modules).setIdentity();
+  F_t.block(10, 10 + num_modules, num_modules, num_modules) = 
+                               dt*MatrixXd::Identity(num_modules, num_modules);
+
+  // Joint velocity Jacobian
+  F_t.block(10 + num_modules, 10, num_modules, num_modules) =
+                      (-lambda/dt)*MatrixXd::Identity(num_modules, num_modules);
+  F_t.block(10 + num_modules, 10 + num_modules, num_modules, num_modules) = 
+                      (1 - lambda)*MatrixXd::Identity(num_modules, num_modules);
   /*
-  for (size_t col = 10; col < 2*num_modules; col++) {
+  for (size_t col = 0; col < statelen; col++) {
     VectorXd x_t_1_p(x_t_1); // Make a copy to perturb
     // Perturb state variable corresponding to this column of J
     x_t_1_p(col) += epsilon;
@@ -271,24 +276,11 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
     VectorXd dx_t = (x_t_plus - x_t_minus)/(2*epsilon);
 
     // Populate J
-    for (size_t row = 10; row < 2*num_modules; row++) {
+    for (size_t row = 0; row < statelen; row++) {
       F_t(row, col) = dx_t(row);
     }
   }
   */
-  // Joint angles and joint velocities only depend on
-  // previous joint angles and joint velocities
-  
-  // Joint angle Jacobian
-  F_t.block(10, 10, num_modules, num_modules).setIdentity();
-  F_t.block(10, 10 + num_modules, num_modules, num_modules) = 
-                               dt*MatrixXd::Identity(num_modules, num_modules);
-
-  // Joint velocity Jacobian
-  F_t.block(10 + num_modules, 10, num_modules, num_modules) =
-                      (-lambda/dt)*MatrixXd::Identity(num_modules, num_modules);
-  F_t.block(10 + num_modules, 10 + num_modules, num_modules, num_modules) = 
-                      (1 - lambda)*MatrixXd::Identity(num_modules, num_modules);
 }
 
 /*
@@ -299,35 +291,32 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
 * num_modules: number of modules in the snake
 */
 void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules) {
-  // Derivative of angle measurements with respect to joint angles
-  // is simply 1
-  H_t.block(0, 0, num_modules, num_modules).setIdentity();
-
-  VectorXd x_t_p(x_t);
   size_t statelen = state_length(num_modules);
   size_t sensorlen = sensor_length(num_modules);
   for (size_t col = 0; col < statelen; col++) {
     // Perturb state variable corresponding to this column of J
-    x_t_p(col) += epsilon;
+    VectorXd x_t_plus(x_t);
+    VectorXd x_t_minus(x_t);
+    x_t_plus(col) += epsilon;
+    x_t_minus(col) -= epsilon;
+
+    if (col == 13) {
+      cout << "HERE\n";
+    }
+    
     VectorXd z_t_plus(sensorlen);
-    h(z_t_plus, x_t_p, dt, num_modules);
-    x_t_p(col) -= 2*epsilon;
+    h(z_t_plus, x_t_plus, dt, num_modules);
     VectorXd z_t_minus(sensorlen);
-    h(z_t_minus, x_t_p, dt, num_modules);
-    x_t_p(col) += epsilon;
+    h(z_t_minus, x_t_minus, dt, num_modules);
 
     // Compute derivative
     VectorXd dz_t = (z_t_plus - z_t_minus)/(2*epsilon);
 
-    // Populate J
-    for (size_t row = 0; row < sensorlen; row++) {
-      // This condition exists because we already computed the
-      // analytical Jacobian for the angle measurements
-      if (row >= num_modules || col >= num_modules) {
-        H_t(row, col) = dz_t(row);
-      }
-    }
+    H_t.block(0, col, sensorlen, 1) = dz_t;
   }
+  // Derivative of angle measurements with respect to joint angles
+  // is simply 1
+  H_t.block(0, 10, num_modules, num_modules).setIdentity();
 }
 
 size_t state_length(size_t num_modules) {
@@ -494,7 +483,7 @@ void set_gamma(VectorXd& z_t, const Vector3d& gamma_t, size_t i,
 }
 
 // Get head orientation (wxyz)
-void get_head(Vector4d& q_head_vec, VectorXd& x_t, size_t num_modules) {
+void get_head(Vector4d& q_head_vec, const VectorXd& x_t, size_t num_modules) {
   Vector4d qvec;
   get_q(qvec, x_t);
   Quaterniond q_t(qvec(0), qvec(1), qvec(2), qvec(3));

@@ -23,11 +23,20 @@ class EKF
         /* EKF: constructor for extended Kalman filter with diagonal covariance
                 matrices
          * ARGUMENTS
-         * q: sensor noise/covariance
          * r: process noise/covariance
+         * q: sensor noise/covariance
          * modules: number of modules in snake
          */
-        EKF(double q, double r, size_t modules);
+        EKF(double r, double q, size_t modules);
+  
+        /* EKF: constructor for extended Kalman filter
+         * ARGUMENTS
+         * _R: process noise/covariance
+         * _Q: sensor noise/covariance
+         * _S: initial prediction covariance
+         * modules: number of modules in snake
+         */
+        EKF(MatrixXd& _R, MatrixXd& _Q, MatrixXd& _S, size_t modules);
         
         /* predict: runs predict step
          * ARGUMENTS

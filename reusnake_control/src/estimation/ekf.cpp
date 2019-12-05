@@ -20,7 +20,7 @@ using namespace std;
 
 static const double epsilon = 0.001;
 
-EKF::EKF(double q, double r, size_t modules) {
+EKF::EKF(double r, double q, size_t modules) {
   num_modules = modules;
 
   statelen = state_length(num_modules);
@@ -29,9 +29,20 @@ EKF::EKF(double q, double r, size_t modules) {
   MatrixXd I;
   I.setIdentity(statelen, statelen);
   R = r*I;
-  S_t = 0.1*I;
+  S_t = I;
   I.setIdentity(sensorlen, sensorlen);
   Q = q*I;
+}
+
+EKF::EKF(MatrixXd& _R, MatrixXd& _Q, MatrixXd& _S, size_t modules) {
+  num_modules = modules;
+
+  statelen = state_length(num_modules);
+  sensorlen = sensor_length(num_modules);
+
+  R = _R;
+  S_t = _S;
+  Q = _Q;
 }
 
 void EKF::predict(const VectorXd& u_t, double _dt) {
@@ -53,6 +64,13 @@ void EKF::correct(const VectorXd& z_t) {
   MatrixXd H_t(sensorlen, statelen);
   dh(H_t, x_t, dt, num_modules);
 
+  for (size_t i = 0; i < sensorlen; i++) {
+    for (size_t j = 0; j < statelen; j++) {
+      if (H_t(i, j) > 100) cout << "BAD: " << i << " " << j << "\n";
+    }
+  }
+  cout << "\n";
+
   // Kalman gain
   MatrixXd K = S_t*H_t.transpose()*(H_t*S_t*H_t.transpose() + Q).inverse();
 
@@ -69,6 +87,13 @@ void EKF::correct(const VectorXd& z_t) {
   }
 
   x_t = x_t + K*sensor_diff;
+
+  // When joint angles become nonzero derivative with respect ot thetas
+  // becomes bad. Obviously this isn't a solution
+  for (size_t i = 0; i < num_modules; i++) {
+    set_theta(x_t, i, 0);
+  }
+
   MatrixXd I;
   I.setIdentity(statelen, statelen);
   S_t = (I - K*H_t)*S_t;

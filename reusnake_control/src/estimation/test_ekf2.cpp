@@ -9,7 +9,7 @@ using namespace Eigen;
 using namespace std;
 
 static const double dt = 0.1;
-static const size_t num_modules = 13;
+static const size_t num_modules = 2;
 static const double g = 9.8;
 
 // Prints head orientation zyz Euler angles
@@ -29,7 +29,9 @@ void print_angvel(VectorXd& x_t) {
 }
 
 int main() {
-  VectorXd z_t(sensor_length(num_modules));
+  size_t statelen = state_length(num_modules);
+  size_t sensorlen = sensor_length(num_modules);
+  VectorXd z_t(sensorlen);
 
   Vector3d alpha(0, g, 0);
   for (size_t i = 0; i < num_modules; i++) {
@@ -42,7 +44,11 @@ int main() {
     set_gamma(z_t, gamma, i, num_modules);
   }
 
-  EKF ekf(1, 1, num_modules);
+  MatrixXd R = MatrixXd::Identity(statelen, statelen);
+  MatrixXd Q = 0.05*MatrixXd::Identity(sensorlen, statelen);
+  MatrixXd S = 0.01*MatrixXd::Identity(statelen, statelen);
+  S.block(7, 7, 3, 3) = 100*Matrix3d::Identity();
+  EKF ekf(R, Q, S, num_modules);
 
   ekf.initialize(z_t);
 

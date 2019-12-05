@@ -149,4 +149,4 @@ void set_gamma(VectorXd& z_t, const Vector3d& gamma_t, size_t i,
                size_t num_modules);
 
 // Get head orientation (wxyz)
-void get_head(Vector4d& q_head_vec, VectorXd& x_t, size_t num_modules);
+void get_head(Vector4d& q_head_vec, const VectorXd& x_t, size_t num_modules);
