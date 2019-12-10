@@ -7,6 +7,7 @@
 #include <geometry_msgs/Quaternion.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <tf2_ros/transform_broadcaster.h>
+#include "SnakeKinematics.h"
 
 /* This file performs estimation by subscribing to commands and feedback
  * from snake_control_bridge. It updates its estimate every time a new
@@ -28,17 +29,17 @@ static geometry_msgs::TransformStamped pose;
 // Prints orientation of head with zyz Euler angles
 void print_orientation(VectorXd& x_t) {
   Vector4d qvec;
-  get_head(qvec, x_t, num_modules);
+  get_q(qvec, x_t);
   Quaterniond q_t(qvec(0), qvec(1), qvec(2), qvec(3));
   Vector3d euler = q_t.toRotationMatrix().eulerAngles(2, 1, 2);
   printf("head zyz euler angles: %lf %lf %lf\n", euler(0), euler(1), euler(2));
 }
 
-// Prints angular velocity of vc
+// Prints angular velocity of head
 void print_angular_velocity(VectorXd& x_t) {
   Vector3d w_t;
   get_w(w_t, x_t);
-  printf("angular velocity of vc: %lf %lf %lf\n", w_t(0), w_t(1), w_t(2));
+  printf("angular velocity of head: %lf %lf %lf\n", w_t(0), w_t(1), w_t(2));
 }
 
 void handle_feedback(const snake_control_bridge::JointFeedback::ConstPtr& msg) {
@@ -50,14 +51,19 @@ void handle_feedback(const snake_control_bridge::JointFeedback::ConstPtr& msg) {
 
   for (size_t i = 0; i < num_modules; i++) {
     set_phi(z_t, i, msg->js.position[i]);
+    
+    Matrix3d rot = rotZ(-((double)(i + 1))*M_PI/2);
     Vector3d alpha(msg->imu_arr[i].linear_acceleration.x,
                    msg->imu_arr[i].linear_acceleration.y,
                    msg->imu_arr[i].linear_acceleration.z);
+    
+    alpha = rot*alpha;
     set_alpha(z_t, alpha, i, num_modules);
 
     Vector3d gamma(msg->imu_arr[i].angular_velocity.x,
                    msg->imu_arr[i].angular_velocity.y,
                    msg->imu_arr[i].angular_velocity.z);
+    gamma = rot*gamma;
     set_gamma(z_t, gamma, i, num_modules);
   }
   
@@ -66,34 +72,35 @@ void handle_feedback(const snake_control_bridge::JointFeedback::ConstPtr& msg) {
     last_time = t - 0.1;
     ekf.initialize(z_t);
   }
-}
-
-void handle_command(const snake_control_bridge::JointCommand::ConstPtr& msg) {
-  // Avoids scenario where we receive a command before receiving any feedback
-  if (last_time == 0) {
-    return;
-  }
-
-  VectorXd u_t(num_modules);
+  
+  double dt = t - last_time;
+  VectorXd u_t(num_modules + 3);
   for (size_t i = 0; i < num_modules; i++) {
-    u_t(i) = msg->angles[i];
+    u_t(i) = msg->js.velocity[i];
   }
+  
+  Vector3d gamma;
+  get_gamma(gamma, z_t, 0, num_modules);
+  u_t.block(num_modules, 0, 3, 1) = gamma;
 
-  ekf.predict(u_t, t - last_time);
+  ekf.predict(u_t, dt);
   ekf.correct(z_t);  
  
   Vector4d q_t;
-  get_head(q_t, ekf.x_t, num_modules);
+  get_q(q_t, ekf.x_t);
+  pose.header.stamp = ros::Time::now();
   pose.transform.rotation.w = q_t(0);
   pose.transform.rotation.x = q_t(1);
   pose.transform.rotation.y = q_t(2);
   pose.transform.rotation.z = q_t(3);
 
   for (size_t i = 0; i < num_modules; i++) {
+    double theta = get_theta(ekf.x_t, i);
+    if (i%4 > 1) theta = -theta;
     if (joint_state.position.size() <= i) {
-      joint_state.position.push_back(get_theta(ekf.x_t, i));
+      joint_state.position.push_back(theta);
     } else {
-      joint_state.position[i] = get_theta(ekf.x_t, i);
+      joint_state.position[i] = theta;
     }
   }
   print_orientation(ekf.x_t);
@@ -105,6 +112,12 @@ int main(int argc, char **argv) {
 
   z_t.setZero();
 
+  size_t statelen = state_length(num_modules);
+  size_t sensorlen = sensor_length(num_modules);
+  ekf.R = 0.001*MatrixXd::Identity(statelen, statelen);
+  ekf.Q = 10*MatrixXd::Identity(sensorlen, sensorlen);
+  ekf.S_t = 0.01*MatrixXd::Identity(statelen, statelen);
+
   ros::init(argc, argv, "estimator");
   ros::NodeHandle n;
 
@@ -115,9 +128,13 @@ int main(int argc, char **argv) {
   pose.transform.translation.y = 0;
   pose.transform.translation.z = 0;
   
+  pose.transform.rotation.w = 1;
+  pose.transform.rotation.x = 0;
+  pose.transform.rotation.y = 0;
+  pose.transform.rotation.z = 0;
+  
   joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 1000);
   ros::Subscriber feedback_sub = n.subscribe("snake_feedback", 1000, handle_feedback);
-  ros::Subscriber command_sub = n.subscribe("snake_command", 1000, handle_command);
 
   tf2_ros::TransformBroadcaster pose_br;
 

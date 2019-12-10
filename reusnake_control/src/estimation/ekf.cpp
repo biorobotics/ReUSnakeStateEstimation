@@ -18,8 +18,6 @@
 using namespace Eigen;
 using namespace std;
 
-static const double epsilon = 0.001;
-
 EKF::EKF(double r, double q, size_t modules) {
   num_modules = modules;
 
@@ -64,13 +62,6 @@ void EKF::correct(const VectorXd& z_t) {
   MatrixXd H_t(sensorlen, statelen);
   dh(H_t, x_t, dt, num_modules);
 
-  for (size_t i = 0; i < sensorlen; i++) {
-    for (size_t j = 0; j < statelen; j++) {
-      if (H_t(i, j) > 100) cout << "BAD: " << i << " " << j << "\n";
-    }
-  }
-  cout << "\n";
-
   // Kalman gain
   MatrixXd K = S_t*H_t.transpose()*(H_t*S_t*H_t.transpose() + Q).inverse();
 
@@ -85,18 +76,19 @@ void EKF::correct(const VectorXd& z_t) {
       sensor_diff(i) = 1000000;
     }
   }
-
+  
   x_t = x_t + K*sensor_diff;
-
-  // When joint angles become nonzero derivative with respect ot thetas
-  // becomes bad. Obviously this isn't a solution
-  for (size_t i = 0; i < num_modules; i++) {
-    set_theta(x_t, i, 0);
-  }
 
   MatrixXd I;
   I.setIdentity(statelen, statelen);
   S_t = (I - K*H_t)*S_t;
+
+  // Renormalize quaternion
+  Vector4d q_t;
+  get_q(q_t, x_t);
+
+  q_t = q_t/sqrt(q_t.squaredNorm());
+  set_q(x_t, q_t);
 }
 
 void EKF::initialize(const VectorXd& z_t) {

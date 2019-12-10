@@ -1,7 +1,6 @@
 #include <Eigen/Dense>
 #include <cmath>
 #include "SnakeKinematics.h"
-#include "VirtualChassisKinematics.h"
 #include "models.hpp"
 #include <iostream>
 
@@ -53,11 +52,22 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
   set_a(x_t, exp(-tau*dt)*a_t_1);
   
   // Predict orientation
-  Vector3d w_t_1; //angular velocity
-  get_w(w_t_1, x_t_1);
+  Vector3d w_t(u_t(num_modules),
+               u_t(num_modules + 1),
+               u_t(num_modules + 2));
+  
+  vector<double> angles(num_modules);
+  for (size_t i = 0; i < num_modules; i++) {
+    angles[i] = get_theta(x_t, i);
+  }
+
+  // Compute snake kinematics (module frames with respect to head frame)
+  transformArray transforms = makeUnifiedSnake(angles);
+
+  w_t = transforms[1].block(0, 0, 3, 3)*w_t;
 
   Matrix4d stm;
-  quaternion_stm(stm, w_t_1, dt);
+  quaternion_stm(stm, w_t, dt);
 
   Vector4d q_t_1;
   get_q(q_t_1, x_t_1);
@@ -68,9 +78,6 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
 
   set_q(x_t, q_t);
 
-  // Predict angular velocity (constant velocity model)
-  Vector3d w_t;
-  get_w(w_t, x_t_1);
   set_w(x_t, w_t);
 
   for (size_t i = 0; i < num_modules; i++) {
@@ -81,13 +88,12 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
   
     // Predict joint velocities as weighted sum of previous and commanded
     // velocities
-    double v_t = (u_t(i) - get_theta(x_t_1, i))/dt;
-    set_theta_dot(x_t, i, (1 - lambda)*get_theta_dot(x_t_1, i, num_modules) + lambda*v_t, num_modules);
+    double v_cmd = -u_t(i); 
+    set_theta_dot(x_t, i, (1 - lambda)*prev_vel + lambda*v_cmd, num_modules);
   }
 }
 
 void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
-  //we'll use these for virtual chassis
   vector<double> angles(num_modules);
   vector<double> prev_angles(num_modules);
   vector<double> next_angles(num_modules);
@@ -111,21 +117,6 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
   transformArray prev_transforms = makeUnifiedSnake(prev_angles);
   transformArray next_transforms = makeUnifiedSnake(next_angles);
 
-  // Compute virtual chassis
-  Matrix4d vc = getSnakeVirtualChassis(transforms);
-  Matrix4d prev_vc = getSnakeVirtualChassis(prev_transforms);
-  Matrix4d next_vc = getSnakeVirtualChassis(next_transforms);
-  
-  makeVirtualChassisConsistent(prev_vc, vc);
-  makeVirtualChassisConsistent(vc, next_vc);
-  
-  // Compute snake kinematics in VC
-  leftTransformSnake(transforms, vc.inverse()); 
-  //leftTransformSnake(prev_transforms, prev_vc.inverse()); 
-  //leftTransformSnake(next_transforms, next_vc.inverse()); 
-  leftTransformSnake(prev_transforms, vc.inverse()); 
-  leftTransformSnake(next_transforms, vc.inverse()); 
-  
   /* Predict accelerometer and gyro values */
 
   // Invert orientation quaternion and convert it into rotation matrix
@@ -133,7 +124,7 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
   get_q(qvec, x_t);
   Quaterniond q_inv(qvec(0), -qvec(1), -qvec(2), -qvec(3));
  
-  // Rotation matrix of world frame with respect to virtual chassis frame
+  // Rotation matrix of world frame with respect to head frame
   Matrix3d V_t(q_inv);
 
   // Perceived acceleration due to gravity in world frame
@@ -142,14 +133,14 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
   for (size_t i = 0; i < num_modules; i++) {
     /* Accelerometer calculations */
 
-    // Rotation matrix of VC with respect to current module frame
+    // Rotation matrix of head with respect to current module frame
     Matrix3d R_inv;
     R_inv = transforms[i + 1].block(0, 0, 3, 3).transpose();
 
     // Perceived acceleration due to gravity in module frame
     Vector3d a_grav = R_inv*V_t*gvec;
 
-    // Double differentiate module position in VC frame for
+    // Double differentiate module position in head frame for
     // "internal acceleration" in module frame
     Vector3d position = transforms[i + 1].block(0, 3, 3, 1);
     Vector3d prev_position = prev_transforms[i + 1].block(0, 3, 3, 1);
@@ -160,20 +151,20 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
 
     Vector3d a_internal = R_inv*(next_velocity - prev_velocity)/dt;
 
-    // Acceleration of VC in world frame
-    Vector3d vc_accel;
-    get_a(vc_accel, x_t);
+    // Acceleration of head in world frame
+    Vector3d head_accel;
+    get_a(head_accel, x_t);
     
-    // Acceleration of VC in module frame
-    Vector3d a_vc = R_inv*V_t*vc_accel;
+    // Acceleration of head in module frame
+    Vector3d a_head = R_inv*V_t*head_accel;
     
     // Populate accelerometer measurement
-    Vector3d alpha_t = a_grav + a_internal + a_vc;
+    Vector3d alpha_t = a_grav + a_internal + a_head;
     set_alpha(z_t, alpha_t, i, num_modules);
     
     /* Gyro calculations */
 
-    // Current and previous rotation matrix of module frame with respect to VC frame
+    // Current and previous rotation matrix of module frame with respect to head frame
     Matrix3d R;
     Matrix3d prev_R;
     prev_R = prev_transforms[i + 1].block(0, 0, 3, 3);
@@ -181,17 +172,25 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
 
     Matrix3d R_dot = (R - prev_R)/dt;
     Matrix3d velocity_matrix = -R*(R_dot.transpose());
+    // Matrix3d velocity_matrix = R*prev_R.transpose()/dt;
+    Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));
+    w_internal = R_inv*w_internal;
     
-    // Compute angular velocity of VC in module frame
+    // Compute angular velocity of head in module frame
     Vector3d w_t;
     get_w(w_t, x_t);
     Vector3d w_t_module = R_inv*w_t;
 
     // Populate gyro values
     Vector3d gamma_t;
+    /*
     gamma_t(0) = velocity_matrix(2, 1) + w_t_module(0);
     gamma_t(1) = velocity_matrix(0, 2) + w_t_module(1);
     gamma_t(2) = velocity_matrix(1, 0) + w_t_module(2);
+    */
+    gamma_t(0) = w_internal(0) + w_t_module(0);
+    gamma_t(1) = w_internal(1) + w_t_module(1);
+    gamma_t(2) = w_internal(2) + w_t_module(2);
     set_gamma(z_t, gamma_t, i, num_modules);
   }
 }
@@ -215,37 +214,19 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
 
   // Quaternion Jacobian with respect to previous quaternion
   // is simply the state transition matrix
-  Vector3d w_t_1;
-  get_w(w_t_1, x_t_1);
-  Matrix4d stm;
-  quaternion_stm(stm, w_t_1, dt);
-  F_t.block(3, 3, 4, 4) = stm;
-
-  // Compute Jacobian with respect to angular velocities numerically
-  for (size_t col = 7; col < 10; col++) {
-    VectorXd x_t_1_p(x_t_1); // Make a copy to perturb
-    // Perturb state variable corresponding to this column of J
-    x_t_1_p(col) += epsilon;
-    VectorXd x_t_plus(statelen);
-    f(x_t_plus, x_t_1_p, u_t, dt, num_modules);
-    x_t_1_p(col) -= 2*epsilon;
-    VectorXd x_t_minus(statelen);
-    f(x_t_minus, x_t_1_p, u_t, dt, num_modules);
-    x_t_1_p(col) += epsilon;
-
-    // Compute derivative
-    VectorXd dx_t = (x_t_plus - x_t_minus)/(2*epsilon);
-
-    // Populate J
-    for (size_t row = 3; row < 7; row++) {
-      F_t(row, col) = dx_t(row);
-    }
+  Vector3d w_t(u_t(num_modules),
+               u_t(num_modules + 1),
+               u_t(num_modules + 2));
+  vector<double> angles(num_modules);
+  for (size_t i = 0; i < num_modules; i++) {
+    angles[i] = get_theta(x_t_1, i);
   }
+  transformArray transforms = makeUnifiedSnake(angles);
+  w_t = transforms[1].block(0, 0, 3, 3)*w_t;
 
-  // Since we're using a constant velocity model, the derivatives
-  // of the angular velocities are all 0 except for the derivatives
-  // with respect to previous angular velocities
-  F_t.block(7, 7, 3, 3).setIdentity();
+  Matrix4d stm;
+  quaternion_stm(stm, w_t, dt);
+  F_t.block(3, 3, 4, 4) = stm;
 
   // Joint angles and joint velocities only depend on
   // previous joint angles and joint velocities
@@ -256,31 +237,8 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
                                dt*MatrixXd::Identity(num_modules, num_modules);
 
   // Joint velocity Jacobian
-  F_t.block(10 + num_modules, 10, num_modules, num_modules) =
-                      (-lambda/dt)*MatrixXd::Identity(num_modules, num_modules);
   F_t.block(10 + num_modules, 10 + num_modules, num_modules, num_modules) = 
                       (1 - lambda)*MatrixXd::Identity(num_modules, num_modules);
-  /*
-  for (size_t col = 0; col < statelen; col++) {
-    VectorXd x_t_1_p(x_t_1); // Make a copy to perturb
-    // Perturb state variable corresponding to this column of J
-    x_t_1_p(col) += epsilon;
-    VectorXd x_t_plus(statelen);
-    f(x_t_plus, x_t_1_p, u_t, dt, num_modules);
-    x_t_1_p(col) -= 2*epsilon;
-    VectorXd x_t_minus(statelen);
-    f(x_t_minus, x_t_1_p, u_t, dt, num_modules);
-    x_t_1_p(col) += epsilon;
-
-    // Compute derivative
-    VectorXd dx_t = (x_t_plus - x_t_minus)/(2*epsilon);
-
-    // Populate J
-    for (size_t row = 0; row < statelen; row++) {
-      F_t(row, col) = dx_t(row);
-    }
-  }
-  */
 }
 
 /*
@@ -300,10 +258,6 @@ void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules) {
     x_t_plus(col) += epsilon;
     x_t_minus(col) -= epsilon;
 
-    if (col == 13) {
-      cout << "HERE\n";
-    }
-    
     VectorXd z_t_plus(sensorlen);
     h(z_t_plus, x_t_plus, dt, num_modules);
     VectorXd z_t_minus(sensorlen);
@@ -328,8 +282,7 @@ size_t sensor_length(size_t num_modules) {
 }
 
 void init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules) {
-  // We want to start with zero acceleration,
-  // zero angular velocity, and joint velocities of zero
+  // We want to start with joint velocities of zero
   x_t = VectorXd::Zero(state_length(num_modules));
 
   // Use measured angles to initialize angle state
@@ -344,8 +297,6 @@ void init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules) {
   // and measure the initial vc orientation from that
   transformArray transforms = makeUnifiedSnake(angles);
 
-  Matrix4d vc = getSnakeVirtualChassis(transforms);
-
   Vector3d a_grav_module; // module 1 accelerometer value
   get_alpha(a_grav_module, z_t, 0, num_modules);
   Vector3d a_grav(0, g, 0); // gravitational acceleration in world frame
@@ -355,14 +306,13 @@ void init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules) {
   Matrix4d module_T = Matrix4d::Identity(); // associated homogeneous transformation
   module_T.block(0, 0, 3, 3) = module_R;
 
-  // compute vc in world frame (from left to right, we have
-  // transforms from world to module 1, module 1 to head, head to vc)
-  vc = module_T*transforms[1].inverse()*vc;
+  // compute head frame in world frame (from left to right, we have
+  // transforms from world to module 1, module 1 to head)
+  Matrix4d head = module_T*transforms[1].inverse();
 
-  Matrix3d vc_R; // rotation matrix of vc
-  vc_R = vc.block(0, 0, 3, 3);
+  Matrix3d head_R = head.block(0, 0, 3, 3);
   
-  Quaterniond q_t(vc_R);
+  Quaterniond q_t(head_R);
   
   Vector4d qvec;
   qvec(0) = q_t.w();
@@ -480,29 +430,4 @@ void set_gamma(VectorXd& z_t, const Vector3d& gamma_t, size_t i,
   for (size_t j = 0; j < 3; j++) {
     z_t(4*num_modules + 3*i + j) = gamma_t(j);
   }
-}
-
-// Get head orientation (wxyz)
-void get_head(Vector4d& q_head_vec, const VectorXd& x_t, size_t num_modules) {
-  Vector4d qvec;
-  get_q(qvec, x_t);
-  Quaterniond q_t(qvec(0), qvec(1), qvec(2), qvec(3));
-  Matrix3d vc_R(q_t); // rotation of VC with respect to world
-
-  vector<double> angles(num_modules);
-  for (size_t i = 0; i < num_modules; i++) {
-    angles[i] = get_theta(x_t, i);
-  }
-  transformArray transforms = makeUnifiedSnake(angles);
-  Matrix4d vc = getSnakeVirtualChassis(transforms);
-
-  Matrix4d head_T = vc.inverse(); // transform of head with respect to VC
-  Matrix3d head_R = head_T.block(0, 0, 3, 3); // rotation of head with respect to VC
-  
-  Matrix3d head_RW = vc_R*head_R; // rotation of head with respect to world
-  Quaterniond q_head(head_RW);
-  q_head_vec(0) = q_head.w();
-  q_head_vec(1) = q_head.x();
-  q_head_vec(2) = q_head.y();
-  q_head_vec(3) = q_head.z();
 }
