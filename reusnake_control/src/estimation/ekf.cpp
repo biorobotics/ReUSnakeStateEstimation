@@ -76,6 +76,14 @@ void EKF::correct(const VectorXd& z_t) {
       sensor_diff(i) = 1000000;
     }
   }
+
+
+  cout << "z_t \t " << z_t << "\n\n";
+  cout << "h_t \t " << h_t << "\n\n";
+  cout << "diff \t " << sensor_diff << "\n\n";
+
+  exit(1);
+  
   
   x_t = x_t + K*sensor_diff;
 

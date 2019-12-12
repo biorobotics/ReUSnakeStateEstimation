@@ -28,10 +28,10 @@ static const double epsilon = 0.001;
 // Get state transition matrix for quaternion
 void quaternion_stm(Matrix4d& stm, Vector3d& w_t_1, double dt) {
   Matrix4d omega; // skew-symmetric matrix used in orientation update
-  omega << 0, -w_t_1(0), -w_t_1(1), -w_t_1(2),
-         w_t_1(0), 0, w_t_1(2), -w_t_1(1),
-         w_t_1(1), -w_t_1(2), 0, w_t_1(0),
-         w_t_1(2), w_t_1(1), -w_t_1(0), 0;
+  omega <<            0, -w_t_1(0), -w_t_1(1), -w_t_1(2),
+               w_t_1(0),         0,  w_t_1(2), -w_t_1(1),
+               w_t_1(1), -w_t_1(2),         0,  w_t_1(0),
+               w_t_1(2),  w_t_1(1), -w_t_1(0),         0;
   Matrix4d I = Matrix<double, 4, 4>::Identity();
   
   double wmag = sqrt(w_t_1.squaredNorm()); // magnitude of angular velocity
@@ -58,7 +58,7 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
   
   vector<double> angles(num_modules);
   for (size_t i = 0; i < num_modules; i++) {
-    angles[i] = get_theta(x_t, i);
+    angles[i] = get_theta(x_t_1, i);
   }
 
   // Compute snake kinematics (module frames with respect to head frame)
@@ -82,14 +82,17 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
 
   for (size_t i = 0; i < num_modules; i++) {
     // Predict joint angles
-    double prev_angle = get_theta(x_t_1, i);
-    double prev_vel = get_theta_dot(x_t_1, i, num_modules);
-    set_theta(x_t, i, fmod(prev_angle + prev_vel*dt, 2*M_PI));
+    double prev_angle = angles[i];
+    double cur_angle = u_t(i);
+    set_theta(x_t, i, cur_angle);
   
-    // Predict joint velocities as weighted sum of previous and commanded
-    // velocities
-    double v_cmd = -u_t(i); 
-    set_theta_dot(x_t, i, (1 - lambda)*prev_vel + lambda*v_cmd, num_modules);
+    if (cur_angle > M_PI/2 && prev_angle < -M_PI/2) {
+      prev_angle = prev_angle + 2*M_PI;
+    } else if (cur_angle < -M_PI/2 && prev_angle > M_PI/2) {
+      cur_angle = cur_angle + 2*M_PI;
+    }
+    
+    set_theta_dot(x_t, i, (cur_angle - prev_angle)/dt, num_modules);
   }
 }
 
@@ -159,11 +162,12 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
     Vector3d a_head = R_inv*V_t*head_accel;
     
     // Populate accelerometer measurement
-    Vector3d alpha_t = a_grav + a_internal + a_head;
+    Vector3d alpha_t = a_grav;// + a_internal + a_head;
     set_alpha(z_t, alpha_t, i, num_modules);
     
     /* Gyro calculations */
 
+    /*
     // Current and previous rotation matrix of module frame with respect to head frame
     Matrix3d R;
     Matrix3d prev_R;
@@ -172,8 +176,9 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
 
     Matrix3d R_dot = (R - prev_R)/dt;
     Matrix3d velocity_matrix = -R*(R_dot.transpose());
-    // Matrix3d velocity_matrix = R*prev_R.transpose()/dt;
+    //Matrix3d velocity_matrix = R*prev_R.transpose()/dt;
     Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));
+    
     w_internal = R_inv*w_internal;
     
     // Compute angular velocity of head in module frame
@@ -183,15 +188,12 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
 
     // Populate gyro values
     Vector3d gamma_t;
-    /*
-    gamma_t(0) = velocity_matrix(2, 1) + w_t_module(0);
-    gamma_t(1) = velocity_matrix(0, 2) + w_t_module(1);
-    gamma_t(2) = velocity_matrix(1, 0) + w_t_module(2);
-    */
     gamma_t(0) = w_internal(0) + w_t_module(0);
     gamma_t(1) = w_internal(1) + w_t_module(1);
     gamma_t(2) = w_internal(2) + w_t_module(2);
+
     set_gamma(z_t, gamma_t, i, num_modules);
+    */
   }
 }
 
@@ -228,17 +230,9 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
   quaternion_stm(stm, w_t, dt);
   F_t.block(3, 3, 4, 4) = stm;
 
-  // Joint angles and joint velocities only depend on
-  // previous joint angles and joint velocities
-  
-  // Joint angle Jacobian
-  F_t.block(10, 10, num_modules, num_modules).setIdentity();
-  F_t.block(10, 10 + num_modules, num_modules, num_modules) = 
-                               dt*MatrixXd::Identity(num_modules, num_modules);
-
   // Joint velocity Jacobian
-  F_t.block(10 + num_modules, 10 + num_modules, num_modules, num_modules) = 
-                      (1 - lambda)*MatrixXd::Identity(num_modules, num_modules);
+  F_t.block(10 + num_modules, 10, num_modules, num_modules) = 
+                      (-1/dt)*MatrixXd::Identity(num_modules, num_modules);
 }
 
 /*
@@ -278,7 +272,8 @@ size_t state_length(size_t num_modules) {
 }
 
 size_t sensor_length(size_t num_modules) {
-  return 7*num_modules;
+  //return 7*num_modules;
+  return 4*num_modules;
 }
 
 void init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules) {
@@ -289,7 +284,7 @@ void init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules) {
   vector<double> angles(num_modules);
   for (size_t i = 0; i < num_modules; i++) {
     angles[i] = get_phi(z_t, i);
-    set_theta(x_t, i, angles[i]); 
+    set_theta(x_t, i, angles[i]);
   }
   
   // We don't initialize with identity orientation. Rather,
