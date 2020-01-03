@@ -18,7 +18,7 @@
 using namespace Eigen;
 using namespace std;
 
-EKF::EKF(double r, double q, size_t modules) {
+EKF::EKF(double q, double r, size_t modules) {
   num_modules = modules;
 
   statelen = state_length(num_modules);
@@ -26,21 +26,21 @@ EKF::EKF(double r, double q, size_t modules) {
 
   MatrixXd I;
   I.setIdentity(statelen, statelen);
-  R = r*I;
+  Q = q*I;
   S_t = I;
   I.setIdentity(sensorlen, sensorlen);
-  Q = q*I;
+  R = r*I;
 }
 
-EKF::EKF(MatrixXd& _R, MatrixXd& _Q, MatrixXd& _S, size_t modules) {
+EKF::EKF(MatrixXd& _Q, MatrixXd& _R, MatrixXd& _S, size_t modules) {
   num_modules = modules;
 
   statelen = state_length(num_modules);
   sensorlen = sensor_length(num_modules);
 
-  R = _R;
-  S_t = _S;
   Q = _Q;
+  S_t = _S;
+  R = _R;
 }
 
 void EKF::predict(const VectorXd& u_t, double _dt) {
@@ -50,7 +50,7 @@ void EKF::predict(const VectorXd& u_t, double _dt) {
   MatrixXd F_t(statelen, statelen);
   df(F_t, x_t, u_t, dt, num_modules);
 
-  S_t = F_t*S_t*F_t.transpose() + R;
+  S_t = F_t*S_t*F_t.transpose() + Q;
 
   // Compute state estimate
   VectorXd x_t_1(x_t);
@@ -63,7 +63,7 @@ void EKF::correct(const VectorXd& z_t) {
   dh(H_t, x_t, dt, num_modules);
 
   // Kalman gain
-  MatrixXd K = S_t*H_t.transpose()*(H_t*S_t*H_t.transpose() + Q).inverse();
+  MatrixXd K = S_t*H_t.transpose()*(H_t*S_t*H_t.transpose() + R).inverse();
 
   // Compute expected measurement
   VectorXd h_t(sensorlen);
@@ -77,13 +77,12 @@ void EKF::correct(const VectorXd& z_t) {
     }
   }
 
-
+  /*
   cout << "z_t \t " << z_t << "\n\n";
   cout << "h_t \t " << h_t << "\n\n";
   cout << "diff \t " << sensor_diff << "\n\n";
-
-  exit(1);
-  
+  */
+  cout << sensor_diff.squaredNorm() << "\n\n";
   
   x_t = x_t + K*sensor_diff;
 

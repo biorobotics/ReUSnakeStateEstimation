@@ -160,9 +160,15 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
     
     // Acceleration of head in module frame
     Vector3d a_head = R_inv*V_t*head_accel;
+
+    // Centripetal acceleration of module due to rotation of head
+    Vector3d w_t;
+    get_w(w_t, x_t);
+    Vector3d pos = transforms[i + 1].block(0, 3, 3, 1);
+    Vector3d a_c = R_inv*(w_t.cross(w_t.cross(pos)));
     
     // Populate accelerometer measurement
-    Vector3d alpha_t = a_grav;// + a_internal + a_head;
+    Vector3d alpha_t = a_grav + a_internal + a_head + a_c;
     set_alpha(z_t, alpha_t, i, num_modules);
     
     /* Gyro calculations */
@@ -298,15 +304,10 @@ void init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules) {
   Quaterniond module_q; // quaternion representing module 1 in world frame
   module_q.setFromTwoVectors(a_grav_module, a_grav);
   Matrix3d module_R(module_q); // rotation matrix for module 1 in world frame
-  Matrix4d module_T = Matrix4d::Identity(); // associated homogeneous transformation
-  module_T.block(0, 0, 3, 3) = module_R;
 
   // compute head frame in world frame (from left to right, we have
   // transforms from world to module 1, module 1 to head)
-  Matrix4d head = module_T*transforms[1].inverse();
-
-  Matrix3d head_R = head.block(0, 0, 3, 3);
-  
+  Matrix3d head_R = module_R*transforms[1].block(0, 0, 3, 3).transpose();
   Quaterniond q_t(head_R);
   
   Vector4d qvec;

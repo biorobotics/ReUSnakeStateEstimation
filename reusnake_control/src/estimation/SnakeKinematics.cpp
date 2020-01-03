@@ -114,7 +114,7 @@ transformArray makeSnakeInFrame(vector<double> angles, int moduleFrame, Matrix4d
 Matrix4d getUnifiedSnakeTransform(double angle, int joint)
 {
   // Define the dimensions of the unified snake.
-  double moduleLength = 2.01;
+  double moduleLength = 0.051054; //2.01 inches, in meters
   //double moduleRadius = 2.05;
 
   // Build translation transform that moves half of a module length back
@@ -122,18 +122,10 @@ Matrix4d getUnifiedSnakeTransform(double angle, int joint)
   Matrix4d translate = Matrix4d::Identity();
   translate(2,3) = -moduleLength / 2;
   
-  // Compute the rotation matrix, depending on rotation about the x or y
-  // angle:
+  // Compute the rotation matrix
   Matrix4d R = Matrix4d::Identity();
   
-  // Rotate by the negative angle, because we are going head to tail.
-  angle = -angle;
-
-  if (joint%2 == 0) { // Even equals X, Uneven Y
-    R.block<3,3>(0,0) = rotX(angle);
-  } else {
-    R.block<3,3>(0,0) = rotY(angle);
-  }
+  R.block<3,3>(0,0) = rotZ(-M_PI/2)*rotY(-angle);
 
   // First, translate by half of a module, rotate, then translate by half of
   // a module.

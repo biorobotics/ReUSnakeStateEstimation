@@ -19,9 +19,9 @@
 using namespace Eigen;
 using namespace hebiros;
 
-static const size_t num_modules = 2;
+static const size_t num_modules = 13;
 static const int feedback_freq = 100;
-static const double dt = 0.01; // 1/feedback_freq
+static const double dt = 1.0/feedback_freq;
 
 //static VectorXd z_t(7*num_modules);
 static VectorXd z_t(4*num_modules);
@@ -31,20 +31,13 @@ static sensor_msgs::JointState joint_state;
 static geometry_msgs::TransformStamped pose;
 static bool first = true;
 
-double unspiral(double input, int index)
-{
-  if (index % 4 == 0 || index % 4 == 3)
-    return -input;
-  return input;
-}
-
 // Prints orientation of head with zyz Euler angles
 void print_orientation(VectorXd& x_t) {
   Vector4d qvec;
   get_q(qvec, x_t);
   Quaterniond q_t(qvec(0), qvec(1), qvec(2), qvec(3));
   Vector3d euler = q_t.toRotationMatrix().eulerAngles(2, 1, 2);
-  // printf("head zyz euler angles: %lf %lf %lf\n", euler(0), euler(1), euler(2));
+  printf("head zyz euler angles: %lf %lf %lf\n", euler(0), euler(1), euler(2));
 }
 
 // Prints angular velocity of head
@@ -55,23 +48,18 @@ void print_angular_velocity(VectorXd& x_t) {
 }
 
 void handle_feedback(FeedbackMsg msg) {
-
   VectorXd u_t(num_modules + 3);
 
   for (size_t i = 0; i < num_modules; i++) {
-    double theta = unspiral(msg.position[i], i);
+    double theta = msg.position[i];
 
     set_phi(z_t, i, theta);
     
-    Matrix3d rot = rotZ(-((double)(i + 1))*M_PI/2.0);
-
     Vector3d alpha(msg.accelerometer[i].x, msg.accelerometer[i].y, msg.accelerometer[i].z);
-    alpha = rot*alpha;
     set_alpha(z_t, alpha, i, num_modules);
 
     /*
     Vector3d gamma(msg.gyro[i].x, msg.gyro[i].y, msg.gyro[i].z);
-    gamma = rot*gamma;
     set_gamma(z_t, gamma, i, num_modules);
     */
 
@@ -89,9 +77,7 @@ void handle_feedback(FeedbackMsg msg) {
     first = false;
   }
   
-  Matrix3d rot = rotZ(-M_PI/2);
   Vector3d gamma(msg.gyro[0].x, msg.gyro[0].y, msg.gyro[0].z);
-  gamma = rot*gamma;
   u_t.block(num_modules, 0, 3, 1) = gamma;
   /*
   Vector3d gamma;
@@ -101,28 +87,12 @@ void handle_feedback(FeedbackMsg msg) {
 
   ekf.predict(u_t, dt);
   ekf.correct(z_t);  
-/*
-  ekf.predict(u_t, dt);
-  Vector4d q_t_p;
-  get_q(q_t_p, ekf.x_t);
-  ekf.correct(z_t);  
-  Vector4d q_t_c;
-  get_q(q_t_c, ekf.x_t);
-  Quaterniond q_t_pq(q_t_p(0), q_t_p(1), q_t_p(2), q_t_p(2));
-  Quaterniond q_t_cq(q_t_c(0), -q_t_c(1), -q_t_c(2), -q_t_c(2));
-  Quaterniond diff = q_t_pq*q_t_cq;
-  Vector4d diff_vec(diff.w(), diff.x(), diff.y(), diff.z());
-  cout << diff_vec << "\n\n";
-  */
  
   Vector4d q_t;
   get_q(q_t, ekf.x_t);
   pose.header.stamp = ros::Time::now();
   pose.header.frame_id = "world";
   pose.child_frame_id = "link0";
-  pose.transform.translation.x = 0;
-  pose.transform.translation.y = 0;
-  pose.transform.translation.z = 0;
   pose.transform.rotation.w = q_t(0);
   pose.transform.rotation.x = q_t(1);
   pose.transform.rotation.y = q_t(2);
@@ -136,9 +106,9 @@ int main(int argc, char **argv) {
 
   size_t statelen = state_length(num_modules);
   size_t sensorlen = sensor_length(num_modules);
-  ekf.R = MatrixXd::Identity(statelen, statelen);
-  ekf.Q = MatrixXd::Identity(sensorlen, sensorlen);
-  ekf.S_t = 0.01*MatrixXd::Identity(statelen, statelen);
+  ekf.Q = MatrixXd::Identity(statelen, statelen);
+  ekf.R = MatrixXd::Identity(sensorlen, sensorlen);
+  ekf.S_t = MatrixXd::Identity(statelen, statelen);
 
   ros::init(argc, argv, "estimator");
   ros::NodeHandle n;
@@ -156,7 +126,6 @@ int main(int argc, char **argv) {
   pose.transform.rotation.y = 0;
   pose.transform.rotation.z = 0;
   
-
   // Initialize group using hebiros node
   ros::ServiceClient add_group_client = n.serviceClient<AddGroupFromNamesSrv>("hebiros/add_group_from_names");
   AddGroupFromNamesSrv add_group_srv;

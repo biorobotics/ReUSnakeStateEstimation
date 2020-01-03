@@ -1,9 +1,8 @@
 #include "ros/ros.h"
-#include <snake_control_bridge/JointFeedback.h>
-#include <snake_control_bridge/JointCommand.h>
-#include <sensor_msgs/Imu.h>
 #include <cmath>
 #include <iostream>
+#include "hebiros/FeedbackMsg.h"
+#include <geometry_msgs/Vector3.h>
 
 /* This file is meant to be used for testing. It simulates the values that
  * snake_control_bridge would publish if the snake were performing a simple
@@ -13,55 +12,58 @@
 
 static const double g = 9.8;
 static const size_t num_modules = 13;
-snake_control_bridge::JointFeedback fbk;
-snake_control_bridge::JointCommand cmd;
 
+// Simulate a snake with head spinning about its z-axis
 int main(int argc, char **argv) {
   ros::init(argc, argv, "snake");
   ros::NodeHandle n;
   
   double start_time = ros::Time::now().toSec();
   
-  ros::Publisher feedback_pub = n.advertise<snake_control_bridge::JointFeedback>("snake_feedback", 1000);
-  ros::Publisher command_pub = n.advertise<snake_control_bridge::JointCommand>("snake_command", 1000);
+  ros::Publisher feedback_pub = n.advertise<hebiros::FeedbackMsg>("/hebiros/RUSNAKE/feedback", 1000);
 
-  ros::Rate loop_rate(10);
+  ros::Rate loop_rate(100);
 
+  hebiros::FeedbackMsg feedback;
   while (ros::ok()) {
-    fbk.js.header.stamp = ros::Time::now();
-    fbk.js.header.frame_id = "snake";
-    fbk.js.name = {};
-
     for (size_t i = 0; i < num_modules; i++) {
-      double t = fbk.js.header.stamp.toSec() - start_time;
-      double cmd_pos = 0;//sin(t + i);
-      double pos = 0;//sin(t - 0.1 + i);
+      double t = ros::Time::now().toSec() - start_time - 10;
+      double pos = 0;
+      if (i == 0) {
+        pos = M_PI/2 + 0.01*sin(50*t);
+      }
 
-      sensor_msgs::Imu imu;
-      imu.angular_velocity.x = 0;
-      imu.angular_velocity.y = 0;
-      imu.angular_velocity.z = 1;
+      geometry_msgs::Vector3 gyro;
+      geometry_msgs::Vector3 accelerometer;
 
-      imu.linear_acceleration.x = g*sin(t);
-      imu.linear_acceleration.y = g*cos(t);
-      imu.linear_acceleration.z = 0;
+      if (t > 0) { 
+        gyro.x = cos(i*M_PI/2) + 0.03*sin(60*t + 0.8);
+        gyro.y = sin(i*M_PI/2) + 0.03*sin(40*t + 0.4);
+        gyro.z = 0 + 0.02*sin(35*t + 0.2);
 
-      if (fbk.js.position.size() < num_modules) {
-        fbk.js.position.push_back(pos);
-        fbk.imu_arr.push_back(imu);
-        cmd.angles.push_back(0);
-        cmd.velocities.push_back(0);
-        cmd.torques.push_back(0);
+        accelerometer.x = -g*sin(t)*sin(i*M_PI/2) + 0.005*sin(60*t + 0.7);
+        accelerometer.y = g*sin(t)*cos(i*M_PI/2) + 0.007*sin(50*t + 0.3);
+        accelerometer.z = g*cos(t) + 0.051054*i + 0.025527 + 0.004*sin(50*t + 0.4);
       } else {
-        fbk.js.position[i] = pos;
-        fbk.imu_arr[i] = imu;
-        cmd.angles[i] = cmd_pos;
-        cmd.velocities[i] = 0;
-        cmd.torques[i] = 0;
+        gyro.x = 0;
+        gyro.y = 0;
+        gyro.z = 0;
+        accelerometer.x = 0;
+        accelerometer.y = 0;
+        accelerometer.z = g;
+      }
+
+      if (feedback.position.size() < num_modules) {
+        feedback.position.push_back(pos);
+        feedback.gyro.push_back(gyro);
+        feedback.accelerometer.push_back(accelerometer);
+      } else {
+        feedback.position[i] = pos;
+        feedback.gyro[i] = gyro;
+        feedback.accelerometer[i] = accelerometer;
       }
     }
-    feedback_pub.publish(fbk);
-    command_pub.publish(cmd);
+    feedback_pub.publish(feedback);
     loop_rate.sleep();
   }
 
