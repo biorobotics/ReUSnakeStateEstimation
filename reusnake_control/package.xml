@@ -28,6 +28,7 @@
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>transform_graph</exec_depend>
   <depend>hebi_cpp_api</depend>
+  <depend>hebiros</depend>
 
   <!-- The export tag contains other, unspecified, tags -->
   <export>

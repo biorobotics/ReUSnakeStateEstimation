@@ -131,7 +131,7 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
   Matrix3d V_t(q_inv);
 
   // Perceived acceleration due to gravity in world frame
-  Vector3d gvec(0, g, 0);
+  Vector3d gvec(0, 0, g);
 
   for (size_t i = 0; i < num_modules; i++) {
     /* Accelerometer calculations */
@@ -300,7 +300,7 @@ void init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules) {
 
   Vector3d a_grav_module; // module 1 accelerometer value
   get_alpha(a_grav_module, z_t, 0, num_modules);
-  Vector3d a_grav(0, g, 0); // gravitational acceleration in world frame
+  Vector3d a_grav(0, 0, g); // gravitational acceleration in world frame
   Quaterniond module_q; // quaternion representing module 1 in world frame
   module_q.setFromTwoVectors(a_grav_module, a_grav);
   Matrix3d module_R(module_q); // rotation matrix for module 1 in world frame

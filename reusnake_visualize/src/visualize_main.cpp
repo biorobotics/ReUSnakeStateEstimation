@@ -42,13 +42,6 @@ ros::Publisher marker_arr_pub;
 // body pose of the snake
 geometry_msgs::Pose body_pose;
 
-void pose_callback(const geometry_msgs::Pose::ConstPtr& pose) {
-  body_pose.orientation.w = pose->orientation.w;
-  body_pose.orientation.x = pose->orientation.x;
-  body_pose.orientation.y = pose->orientation.y;
-  body_pose.orientation.z = pose->orientation.z;
-}
-
 // tf related
 
 void joint_state_callback(const sensor_msgs::JointStateConstPtr& joint_state) 
@@ -76,8 +69,6 @@ int main(int argc, char** argv) {
   ros::Rate loop_rate(50);
 
 
-  // publisher 
-  tf::TransformBroadcaster tf_broadcaster;
   tf::TransformListener tf_listener;
 
   // robomarker visualizer

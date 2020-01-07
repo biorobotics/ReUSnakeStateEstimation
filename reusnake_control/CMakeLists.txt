@@ -27,16 +27,15 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
 
   hebi_cpp_api # hebi cpp api to replace code  
+  hebiros
   tf2_kdl
   tf2_ros
-  
-  snake_control_bridge
 )
 
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES titan6_cpp
-  CATKIN_DEPENDS roscpp rospy roslib std_msgs geometry_msgs hebi_cpp_api snake_control_bridge
+  CATKIN_DEPENDS roscpp rospy roslib std_msgs geometry_msgs hebi_cpp_api 
 #  DEPENDS system_lib
 )
 
@@ -83,8 +82,8 @@ target_link_libraries( control
                           ${orocos_kdl_LIBRARIES}
                           ${catkin_LIBRARIES} 
                           )
-add_executable(estimator_node src/estimation/estimator_node.cpp)
-target_link_libraries(estimator_node ${catkin_LIBRARIES} estimation)
+		  add_executable(estimator_node src/estimation/estimator_node.cpp $<TARGET_OBJECTS:estimation>)
+target_link_libraries(estimator_node ${catkin_LIBRARIES})
 
 add_executable(dummy_snake src/estimation/dummy_snake.cpp)
 target_link_libraries(dummy_snake ${catkin_LIBRARIES})
