@@ -63,7 +63,7 @@ void handle_feedback(FeedbackMsg msg) {
     set_gamma(z_t, gamma, i, num_modules);
     */
 
-    u_t(i) = theta;
+    u_t(i) = msg.position_command[i];
   
     if (joint_state.position.size() <= i) { 
       joint_state.position.push_back(msg.position[i]);
@@ -145,7 +145,10 @@ int main(int argc, char **argv) {
         "RUSnake Module #1"};
   add_group_srv.request.families = {"*"};
   // Block until group is created
-  while (!add_group_client.call(add_group_srv)) {} 
+  if (!add_group_client.call(add_group_srv)) {
+    cout << "Lookup of RUSNAKE failed.\n";  
+    exit(1);
+  } 
   
   // Set feedback frequency
   ros::ServiceClient set_freq_client = n.serviceClient<SetFeedbackFrequencySrv>("hebiros/set_feedback_frequency");
