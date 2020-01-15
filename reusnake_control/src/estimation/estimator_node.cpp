@@ -19,7 +19,7 @@
 using namespace Eigen;
 using namespace hebiros;
 
-static const size_t num_modules = 13;
+static const size_t num_modules = 5;
 static const int feedback_freq = 100;
 static const double dt = 1.0/feedback_freq;
 
@@ -27,6 +27,7 @@ static const double dt = 1.0/feedback_freq;
 static VectorXd z_t(4*num_modules);
 static EKF ekf(1, 1, num_modules);
 static ros::Publisher joint_pub;
+static ros::Publisher meas_pub;
 static sensor_msgs::JointState joint_state;
 static geometry_msgs::TransformStamped pose;
 static bool first = true;
@@ -107,7 +108,7 @@ int main(int argc, char **argv) {
   size_t statelen = state_length(num_modules);
   size_t sensorlen = sensor_length(num_modules);
   ekf.Q = MatrixXd::Identity(statelen, statelen);
-  ekf.R = MatrixXd::Identity(sensorlen, sensorlen);
+  ekf.R = 0.1*MatrixXd::Identity(sensorlen, sensorlen);
   ekf.S_t = MatrixXd::Identity(statelen, statelen);
 
   ros::init(argc, argv, "estimator");
@@ -134,15 +135,7 @@ int main(int argc, char **argv) {
         "RUSnake Module #12",
         "RUSnake Module #11",
         "RUSnake Module #10",
-        "RUSnake Module #9",
-        "RUSnake Module #8",
-        "RUSnake Module #7",
-        "RUSnake Module #6",
-        "RUSnake Module #5",
-        "RUSnake Module #4",
-        "RUSnake Module #3",
-        "RUSnake Module #2",
-        "RUSnake Module #1"};
+        "RUSnake Module #9"};
   add_group_srv.request.families = {"*"};
   // Block until group is created
   if (!add_group_client.call(add_group_srv)) {
@@ -157,6 +150,7 @@ int main(int argc, char **argv) {
   set_freq_client.call(set_freq_srv);
 
   joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 100);
+  meas_pub = n.advertise<hebiros::FeedbackMsg>("/reusnake/measurement_model", 100);
   ros::Subscriber feedback_sub = n.subscribe("/hebiros/RUSNAKE/feedback", 100, handle_feedback);
 
   tf2_ros::TransformBroadcaster pose_br;
@@ -164,6 +158,20 @@ int main(int argc, char **argv) {
   while (ros::ok()) {
     pose_br.sendTransform(pose);
     joint_pub.publish(joint_state);
+
+    // Publish predicted measurement
+    hebiros::FeedbackMsg measurement;
+    for (size_t i = 0; i < num_modules; i++) {
+      Vector3d acc_vec;
+      get_alpha(acc_vec, ekf.h_t, i, num_modules);
+      geometry_msgs::Vector3 acc_vec_ros;
+      acc_vec_ros.x = acc_vec(0);
+      acc_vec_ros.y = acc_vec(1);
+      acc_vec_ros.z = acc_vec(2);
+      measurement.accelerometer.push_back(acc_vec_ros);
+    }
+    meas_pub.publish(measurement);
+    
     r.sleep();
     ros::spinOnce();
   }

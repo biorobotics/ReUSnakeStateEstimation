@@ -30,6 +30,8 @@ EKF::EKF(double q, double r, size_t modules) {
   S_t = I;
   I.setIdentity(sensorlen, sensorlen);
   R = r*I;
+
+  h_t = VectorXd::Zero(sensorlen);
 }
 
 EKF::EKF(MatrixXd& _Q, MatrixXd& _R, MatrixXd& _S, size_t modules) {
@@ -62,11 +64,11 @@ void EKF::correct(const VectorXd& z_t) {
   MatrixXd H_t(sensorlen, statelen);
   dh(H_t, x_t, dt, num_modules);
 
-  // Kalman gain
-  MatrixXd K = S_t*H_t.transpose()*(H_t*S_t*H_t.transpose() + R).inverse();
+  // For computing Kalman gain
+  MatrixXd tmp = H_t*S_t*H_t.transpose() + R;
 
   // Compute expected measurement
-  VectorXd h_t(sensorlen);
+  //VectorXd h_t(sensorlen);
   h(h_t, x_t, dt, num_modules);
 
   // Compute difference between predicted measurement and actual
@@ -77,17 +79,11 @@ void EKF::correct(const VectorXd& z_t) {
     }
   }
 
-  /*
-  cout << "z_t \t " << z_t << "\n\n";
-  cout << "h_t \t " << h_t << "\n\n";
-  cout << "diff \t " << sensor_diff << "\n\n";
-  */
-  cout << sensor_diff.squaredNorm() << "\n\n";
-  
-  x_t = x_t + K*sensor_diff;
+  x_t = x_t + S_t*H_t.transpose()*(tmp.colPivHouseholderQr().solve(sensor_diff));
 
   MatrixXd I;
   I.setIdentity(statelen, statelen);
+  MatrixXd K = S_t*H_t.transpose()*tmp.colPivHouseholderQr().inverse();
   S_t = (I - K*H_t)*S_t;
 
   // Renormalize quaternion

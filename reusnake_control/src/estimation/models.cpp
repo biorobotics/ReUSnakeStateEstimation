@@ -154,7 +154,7 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
     Vector3d next_position = next_transforms[i + 1].block(0, 3, 3, 1);
 
     Vector3d a_internal = R_inv*(next_position - 2*position + prev_position)/(dt*dt);
-
+  
     // Acceleration of module 1 in world frame
     Vector3d m1_accel;
     get_a(m1_accel, x_t);
@@ -166,7 +166,7 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
     Vector3d a_c = R_inv*(w_t.cross(w_t.cross(position)));
     
     // Populate accelerometer measurement
-    Vector3d alpha_t = a_grav + a_m1 + a_c + a_internal;
+    Vector3d alpha_t = a_grav + a_m1 + a_c;//+ a_internal;
     set_alpha(z_t, alpha_t, i, num_modules);
     
     /* Gyro calculations */

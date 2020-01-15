@@ -64,6 +64,8 @@ class EKF
         VectorXd x_t; // current state estimate
 		    MatrixXd S_t; // prediction covariance
 
+        VectorXd h_t; // predicted measurement, for printing mainly
+
     private:
         size_t num_modules; //number of modules in snake
       
