@@ -1,6 +1,6 @@
 #include "ros/ros.h"
-#include "ekf.hpp"
-#include "models.hpp"
+#include "ekf_vc.hpp"
+#include "models_vc.hpp"
 #include <Eigen/Dense>
 #include <geometry_msgs/Quaternion.h>
 #include <geometry_msgs/TransformStamped.h>
@@ -70,22 +70,24 @@ void handle_feedback(FeedbackMsg msg) {
       u_t(i) = (msg.position_command[i] - prev_cmd[i])/dt;
     }
     prev_cmd[i] = msg.position_command[i];
-  
-    if (joint_state.position.size() <= i) { 
-      joint_state.position.push_back(msg.position[i]);
-    } else {
-      joint_state.position[i] = msg.position[i];
-    }
   }
 
   if (first) {
     ekf.initialize(z_t);
     first = false;
   }
-
+  
   ekf.predict(u_t, dt);
   ekf.correct(z_t);  
  
+  for (size_t i = 0; i < num_modules; i++) { 
+    double theta = get_theta(ekf.x_t, i);
+    if (joint_state.position.size() <= i) { 
+      joint_state.position.push_back(theta);
+    } else {
+      joint_state.position[i] = theta;
+    }
+  }
   Vector4d q_t;
   get_q(q_t, ekf.x_t);
   pose.header.stamp = ros::Time::now();

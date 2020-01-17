@@ -68,6 +68,13 @@ add_library(estimation OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/SnakeKinematics.cpp
 )
 
+add_library(estimation_vc OBJECT
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/models_vc.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/ekf_vc.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/VirtualChassisKinematics.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/SnakeKinematics.cpp
+)
+
 SET(SOURCES
   ${CMAKE_CURRENT_SOURCE_DIR}/src/robot_control.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/input/input_manager_mobile_io.cpp
@@ -84,6 +91,8 @@ target_link_libraries( control
                           )
 		  add_executable(estimator_node src/estimation/estimator_node.cpp $<TARGET_OBJECTS:estimation>)
 target_link_libraries(estimator_node ${catkin_LIBRARIES})
+		  add_executable(estimator_node_vc src/estimation/estimator_node_vc.cpp $<TARGET_OBJECTS:estimation_vc>)
+target_link_libraries(estimator_node_vc ${catkin_LIBRARIES})
 
 add_executable(dummy_snake src/estimation/dummy_snake.cpp)
 target_link_libraries(dummy_snake ${catkin_LIBRARIES})
