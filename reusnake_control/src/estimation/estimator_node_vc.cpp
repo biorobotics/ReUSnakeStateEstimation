@@ -34,20 +34,20 @@ static bool first = true;
 // Previous position command
 static vector<double> prev_cmd(num_modules);
 
-// Prints orientation of head with zyz Euler angles
+// Prints orientation of vc with zyz Euler angles
 void print_orientation(VectorXd& x_t) {
   Vector4d qvec;
   get_q(qvec, x_t);
   Quaterniond q_t(qvec(0), qvec(1), qvec(2), qvec(3));
   Vector3d euler = q_t.toRotationMatrix().eulerAngles(2, 1, 2);
-  printf("head zyz euler angles: %lf %lf %lf\n", euler(0), euler(1), euler(2));
+  printf("vc zyz euler angles: %lf %lf %lf\n", euler(0), euler(1), euler(2));
 }
 
-// Prints angular velocity of head
+// Prints angular velocity of vc
 void print_angular_velocity(VectorXd& x_t) {
   Vector3d w_t;
   get_w(w_t, x_t);
-  printf("angular velocity of head: %lf %lf %lf\n", w_t(0), w_t(1), w_t(2));
+  printf("angular velocity of vc: %lf %lf %lf\n", w_t(0), w_t(1), w_t(2));
 }
 
 void handle_feedback(FeedbackMsg msg) {

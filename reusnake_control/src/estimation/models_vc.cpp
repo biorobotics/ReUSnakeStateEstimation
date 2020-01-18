@@ -164,17 +164,17 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules, Ma
     Vector3d a_internal = R_inv*(next_position - 2*position + prev_position)/(dt*dt);
   
     // Acceleration of virtual chassis in world frame
-    Vector3d m1_accel;
-    get_a(m1_accel, x_t);
+    Vector3d vc_accel;
+    get_a(vc_accel, x_t);
     
     // Acceleration of virtual chassis in module frame
-    Vector3d a_m1 = R_inv*V_t*m1_accel;
+    Vector3d a_vc = R_inv*V_t*vc_accel;
 
     // Centripetal acceleration of module due to rotation of virtual chassis
     Vector3d a_c = R_inv*(w_t.cross(w_t.cross(position)));
     
     // Populate accelerometer measurement
-    Vector3d alpha_t = a_grav + a_m1 + a_c + a_internal;
+    Vector3d alpha_t = a_grav + a_vc + a_c + a_internal;
     set_alpha(z_t, alpha_t, i, num_modules);
     
     /* Gyro calculations */
@@ -185,7 +185,6 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules, Ma
 
     Matrix3d R_dot = (R - prev_R)/dt;
     Matrix3d velocity_matrix = R_dot*R.transpose();
-    //Matrix3d velocity_matrix = R*prev_R.transpose()/dt;
     Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));
     w_internal = R_inv*w_internal;
 
