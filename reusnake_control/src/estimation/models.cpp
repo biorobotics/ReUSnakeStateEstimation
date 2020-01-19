@@ -299,11 +299,19 @@ void init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules) {
   Quaterniond q_t; // quaternion representing module 1 in world frame
   q_t.setFromTwoVectors(a_grav_module, a_grav);
 
+  // Reverse yaw because that's what VINS-Fusion does
+  Vector3d ypr = q_t.toRotationMatrix().eulerAngles(2, 1, 0);
+  ypr(0) = -ypr(0);
+  
+  Matrix3d new_rot = rotZ(ypr(0))*rotY(ypr(1))*rotX(ypr(2));
+
+  Quaterniond new_q(new_rot);
+
   Vector4d qvec;
-  qvec(0) = q_t.w();
-  qvec(1) = q_t.x();
-  qvec(2) = q_t.y();
-  qvec(3) = q_t.z();
+  qvec(0) = new_q.w();
+  qvec(1) = new_q.x();
+  qvec(2) = new_q.y();
+  qvec(3) = new_q.z();
   
   set_q(x_t, qvec);
 }
