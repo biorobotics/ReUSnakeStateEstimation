@@ -90,13 +90,19 @@ void handle_feedback(FeedbackMsg msg) {
   }
   Vector4d q_t;
   get_q(q_t, ekf.x_t);
+
+  Quaterniond q_vc_world(q_t(0), q_t(1), q_t(2), q_t(3));
+  Matrix3d vc_R = ekf.prev_vc.block(0, 0, 3, 3);
+  Quaterniond q_vc_head(vc_R);
+  Quaterniond q_head = q_vc_world*q_vc_head.conjugate();
+
   pose.header.stamp = ros::Time::now();
   pose.header.frame_id = "world";
-  pose.child_frame_id = "link0";
-  pose.transform.rotation.w = q_t(0);
-  pose.transform.rotation.x = q_t(1);
-  pose.transform.rotation.y = q_t(2);
-  pose.transform.rotation.z = q_t(3);
+  pose.child_frame_id = "head_vc";
+  pose.transform.rotation.w = q_head.w();
+  pose.transform.rotation.x = q_head.x();
+  pose.transform.rotation.y = q_head.y();
+  pose.transform.rotation.z = q_head.z();
 
   print_orientation(ekf.x_t);
 }

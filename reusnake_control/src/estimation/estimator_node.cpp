@@ -70,12 +70,6 @@ void handle_feedback(FeedbackMsg msg) {
       u_t(i) = (msg.position_command[i] - prev_cmd[i])/dt;
     }
     prev_cmd[i] = msg.position_command[i];
-  
-    if (joint_state.position.size() <= i) { 
-      joint_state.position.push_back(msg.position[i]);
-    } else {
-      joint_state.position[i] = msg.position[i];
-    }
   }
 
   if (first) {
@@ -86,15 +80,36 @@ void handle_feedback(FeedbackMsg msg) {
   ekf.predict(u_t, dt);
   ekf.correct(z_t);  
  
+  vector<double> angles;
+  for (size_t i = 0; i < num_modules; i++) { 
+    double theta = get_theta(ekf.x_t, i);
+    angles.push_back(theta);
+    if (joint_state.position.size() <= i) { 
+      joint_state.position.push_back(theta);
+    } else {
+      joint_state.position[i] = theta;
+    }
+  }
   Vector4d q_t;
   get_q(q_t, ekf.x_t);
+
+  // Filter estimates module 1 orientation. Now calculate head orientation
+  transformArray transforms = makeUnifiedSnake(angles);
+  // Orientation of module 1 wrt head
+  Matrix3d R = transforms[1].block(0, 0, 3, 3);
+  Quaterniond q_m1_head(R); 
+  // Orientation of module 1 wrt world
+  Quaterniond q_m1_world(q_t(0), q_t(1), q_t(2), q_t(3));
+
+  Quaterniond q_head = q_m1_world*q_m1_head.conjugate();
+  
   pose.header.stamp = ros::Time::now();
   pose.header.frame_id = "world";
-  pose.child_frame_id = "link0";
-  pose.transform.rotation.w = q_t(0);
-  pose.transform.rotation.x = q_t(1);
-  pose.transform.rotation.y = q_t(2);
-  pose.transform.rotation.z = q_t(3);
+  pose.child_frame_id = "head_m1";
+  pose.transform.rotation.w = q_head.w();
+  pose.transform.rotation.x = q_head.x();
+  pose.transform.rotation.y = q_head.y();
+  pose.transform.rotation.z = q_head.z();
 
   print_orientation(ekf.x_t);
 }
