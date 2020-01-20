@@ -1,0 +1,11 @@
+<launch>
+  <include file="$(find vins)/launch/laptop_435.launch" />
+  <include file="$(find realsense2_camera)/launch/rs_camera_modify.launch" />
+  <node name="dreconfig" pkg="dynamic_reconfigure" type="dynparam" args="" /> 
+
+rosrun  dynamic_reconfigure dynparam set /camera/stereo_module 'emitter_enabled' 0
+  <include file="$(find vins)/launch/laptop_435.launch" />
+  <node name="hebinode" pkg="hebiros" type="hebiros_node" /> 
+  <node name="estimator_head" pkg="reusnake_control" type="estimator_node" /> 
+  <node name="estimator_vc" pkg="reusnake_control" type="estimator_node_vc" /> 
+</launch>
