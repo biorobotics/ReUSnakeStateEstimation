@@ -63,6 +63,13 @@ void EKF::correct(const VectorXd& z_t) {
   // Compute Jacobian of sensor model
   MatrixXd H_t(sensorlen, statelen);
   dh(H_t, x_t, dt, num_modules);
+  
+  for (size_t i = 0; i < sensorlen; i++) {
+    if (isnan(z_t(i))) {
+      R(i, i) = 1000000;
+      z_t(i) = 0;
+    }
+  }
 
   // For computing Kalman gain
   MatrixXd tmp = H_t*S_t*H_t.transpose() + R;
@@ -73,11 +80,6 @@ void EKF::correct(const VectorXd& z_t) {
 
   // Compute difference between predicted measurement and actual
   VectorXd sensor_diff = z_t - h_t;
-  for (size_t i = 0; i < sensorlen; i++) {
-    if (isnan(z_t(i))) {
-      sensor_diff(i) = 1000000;
-    }
-  }
 
   x_t = x_t + S_t*H_t.transpose()*(tmp.colPivHouseholderQr().solve(sensor_diff));
 
