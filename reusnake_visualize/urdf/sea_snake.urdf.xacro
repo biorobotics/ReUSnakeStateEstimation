@@ -34,7 +34,7 @@
   <joint name="head__OUTPUT_INTERFACE" type="fixed">
     <parent link="link0"/>
     <child link="${S_00}__INPUT_INTERFACE"/>
-    <!-- <origin xyz="${width/2} ${leg_y_offset} ${height/2}" rpy="-${PI/2} 0 -${PI/2}"/> -->
+    <origin xyz="0 0 0" rpy="0 0 ${PI/2}"/>
   </joint>
   
   <xacro:rotary_module joint="${S_00}" child="${S_01}"/>
