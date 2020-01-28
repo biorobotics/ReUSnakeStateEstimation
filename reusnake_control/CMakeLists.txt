@@ -64,7 +64,6 @@ add_library(hebi_robot_core OBJECT
 add_library(estimation OBJECT
   ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/ekf.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/models.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/VirtualChassisKinematics.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/SnakeKinematics.cpp
 )
 
@@ -93,6 +92,8 @@ target_link_libraries( control
 target_link_libraries(estimator_node ${catkin_LIBRARIES})
 		  add_executable(estimator_node_vc src/estimation/estimator_node_vc.cpp $<TARGET_OBJECTS:estimation_vc>)
 target_link_libraries(estimator_node_vc ${catkin_LIBRARIES})
+		  add_executable(comparison_node src/estimation/comparison_node.cpp)
+target_link_libraries(comparison_node ${catkin_LIBRARIES})
 
 add_executable(dummy_snake src/estimation/dummy_snake.cpp)
 target_link_libraries(dummy_snake ${catkin_LIBRARIES})

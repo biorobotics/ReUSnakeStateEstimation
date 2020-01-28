@@ -1,8 +1,13 @@
 <launch>
-  <include file="$(find realsense2_camera)/launch/rs_camera_modify.launch" />
-  <node name="dreconfig" pkg="dynamic_reconfigure" type="dynparam" args="set /camera/stereo_module 'emitter_enabled' 0" /> 
-  <include file="$(find vins)/launch/laptop_435.launch" />
   <node name="hebinode" pkg="hebiros" type="hebiros_node" /> 
-  <node name="estimator_head" pkg="reusnake_control" type="estimator_node" /> 
-  <node name="estimator_vc" pkg="reusnake_control" type="estimator_node_vc" /> 
+  <include file="$(find vins)/launch/rs_camera_modify.launch" /> 
+  <include file="$(find vins)/launch/laptop_435.launch" /> 
+  <node name="estimator_node" pkg="reusnake_control" type="estimator_node" launch-prefix="bash -c 'sleep 1.0; $0 $@'">
+    <remap from="/reusnake/joint_state" to="/reusnake/joint_state_m1"/>
+    <remap from="/reusnake/measurement_model" to="/reusnake/measurement_model_m1"/>
+  </node>
+  <node name="estimator_node_vc" pkg="reusnake_control" type="estimator_node_vc">
+    <remap from="/reusnake/joint_state" to="/reusnake/joint_state_vc"/>
+    <remap from="/reusnake/measurement_model" to="/reusnake/measurement_model_vc"/>
+  </node>
 </launch>

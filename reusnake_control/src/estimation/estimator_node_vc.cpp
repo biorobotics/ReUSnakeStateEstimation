@@ -99,7 +99,7 @@ void handle_feedback(FeedbackMsg msg) {
 
   pose.header.stamp = ros::Time::now();
   pose.header.frame_id = "world";
-  pose.child_frame_id = "link0";
+  pose.child_frame_id = "head_vc";
   pose.transform.rotation.w = q_head.w();
   pose.transform.rotation.x = q_head.x();
   pose.transform.rotation.y = q_head.y();
@@ -107,7 +107,7 @@ void handle_feedback(FeedbackMsg msg) {
 
   Quaterniond vc_q(vc_R);
   virtual_chassis.header.stamp = ros::Time::now();
-  virtual_chassis.header.frame_id = "link0";
+  virtual_chassis.header.frame_id = "head_vc";
   virtual_chassis.child_frame_id = "vc";
   virtual_chassis.transform.translation.x = ekf.prev_vc(0, 3);
   virtual_chassis.transform.translation.y = ekf.prev_vc(1, 3);
@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
   // Initialize pose message 
   pose.header.stamp = ros::Time::now();
   pose.header.frame_id = "world";
-  pose.child_frame_id = "link0";
+  pose.child_frame_id = "head_vc";
   pose.transform.translation.x = 0;
   pose.transform.translation.y = 0;
   pose.transform.translation.z = 0;

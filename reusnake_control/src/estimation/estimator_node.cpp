@@ -105,7 +105,7 @@ void handle_feedback(FeedbackMsg msg) {
   
   pose.header.stamp = ros::Time::now();
   pose.header.frame_id = "world";
-  pose.child_frame_id = "link0";
+  pose.child_frame_id = "head_m1";
   pose.transform.rotation.w = q_head.w();
   pose.transform.rotation.x = q_head.x();
   pose.transform.rotation.y = q_head.y();
@@ -130,7 +130,7 @@ int main(int argc, char **argv) {
   // Initialize pose message 
   pose.header.stamp = ros::Time::now();
   pose.header.frame_id = "world";
-  pose.child_frame_id = "link0";
+  pose.child_frame_id = "head_m1";
   pose.transform.translation.x = 0;
   pose.transform.translation.y = 0;
   pose.transform.translation.z = 0;
