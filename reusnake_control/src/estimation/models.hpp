@@ -147,6 +147,3 @@ double get_gamma(Vector3d& gamma_t, const VectorXd& z_t, size_t i,
 // Set ith gyro vector
 void set_gamma(VectorXd& z_t, const Vector3d& gamma_t, size_t i,
                size_t num_modules);
-
-// Get head orientation (wxyz)
-void get_head(Vector4d& q_head_vec, const VectorXd& x_t, size_t num_modules);

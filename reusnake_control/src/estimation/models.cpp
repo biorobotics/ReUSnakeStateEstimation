@@ -52,7 +52,6 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
   set_a(x_t, exp(-tau*dt)*a_t_1);
   
   // Predict orientation
-  // Predict orientation
   Vector3d w_t;
   get_w(w_t, x_t_1);
   set_w(x_t, w_t);
@@ -101,7 +100,7 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
   for (size_t i = 0; i < num_modules; i++) {
     angles[i] = get_theta(x_t, i);
     set_phi(z_t, i, angles[i]);
-
+    
     // Use joint velocities to estimate angles forward and backward in time
     double dtheta = get_theta_dot(x_t, i, num_modules)*dt;
     prev_angles[i] = angles[i] - dtheta;
@@ -162,12 +161,9 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
     
     // Acceleration of module 1 in module frame
     Vector3d a_m1 = R_inv*V_t*m1_accel;
-
-    // Centripetal acceleration of module due to rotation of module 1
-    Vector3d a_c = R_inv*(w_t.cross(w_t.cross(position)));
     
     // Populate accelerometer measurement
-    Vector3d alpha_t = a_grav + a_m1 + a_c + a_internal;
+    Vector3d alpha_t = a_grav + a_m1 + a_internal;
     set_alpha(z_t, alpha_t, i, num_modules);
     
     /* Gyro calculations */

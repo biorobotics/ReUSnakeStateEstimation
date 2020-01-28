@@ -118,16 +118,20 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules, Ma
 
   // Compute virtual chassis
   Matrix4d vc = getSnakeVirtualChassis(transforms);
+  Matrix4d old_vc = getSnakeVirtualChassis(transforms);
+  Matrix4d next_vc = getSnakeVirtualChassis(transforms);
 
   if (prev_vc.block(0, 3, 3, 1).norm() != 0) {
     makeVirtualChassisConsistent(prev_vc, vc);
+    makeVirtualChassisConsistent(vc, old_vc);
+    makeVirtualChassisConsistent(vc, next_vc);
   }
 
   // Compute everything in virtual chassis frame, since that's the frame
   // whose orientation we're measuring
   leftTransformSnake(transforms, vc.inverse());
-  leftTransformSnake(prev_transforms, vc.inverse());
-  leftTransformSnake(next_transforms, vc.inverse());
+  leftTransformSnake(prev_transforms, old_vc.inverse());
+  leftTransformSnake(next_transforms, next_vc.inverse());
 
   /* Predict accelerometer and gyro values */
 
@@ -149,8 +153,7 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules, Ma
     /* Accelerometer calculations */
 
     // Rotation matrix of virtual chassis with respect to current module frame
-    Matrix3d R_inv;
-    R_inv = transforms[i + 1].block(0, 0, 3, 3).transpose();
+    Matrix3d R_inv = transforms[i + 1].block(0, 0, 3, 3).transpose();
 
     // Perceived acceleration due to gravity in module frame
     Vector3d a_grav = R_inv*V_t*gvec;
@@ -162,7 +165,7 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules, Ma
     Vector3d next_position = next_transforms[i + 1].block(0, 3, 3, 1);
 
     Vector3d a_internal = R_inv*(next_position - 2*position + prev_position)/(dt*dt);
-  
+
     // Acceleration of virtual chassis in world frame
     Vector3d vc_accel;
     get_a(vc_accel, x_t);
@@ -170,11 +173,8 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules, Ma
     // Acceleration of virtual chassis in module frame
     Vector3d a_vc = R_inv*V_t*vc_accel;
 
-    // Centripetal acceleration of module due to rotation of virtual chassis
-    Vector3d a_c = R_inv*(w_t.cross(w_t.cross(position)));
-    
     // Populate accelerometer measurement
-    Vector3d alpha_t = a_grav + a_vc + a_c + a_internal;
+    Vector3d alpha_t = a_grav + a_vc + a_internal;
     set_alpha(z_t, alpha_t, i, num_modules);
     
     /* Gyro calculations */

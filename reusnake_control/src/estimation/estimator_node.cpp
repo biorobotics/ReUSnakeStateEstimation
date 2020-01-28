@@ -19,11 +19,11 @@
 using namespace Eigen;
 using namespace hebiros;
 
-static const size_t num_modules = 5;
+static const size_t num_modules = 11;
 static const int feedback_freq = 100;
 static const double dt = 1.0/feedback_freq;
 
-static VectorXd z_t(7*num_modules);
+static VectorXd z_t(sensor_length(num_modules));
 static EKF ekf(1, 1, num_modules);
 static ros::Publisher joint_pub;
 static ros::Publisher meas_pub;
@@ -105,7 +105,7 @@ void handle_feedback(FeedbackMsg msg) {
   
   pose.header.stamp = ros::Time::now();
   pose.header.frame_id = "world";
-  pose.child_frame_id = "head_m1";
+  pose.child_frame_id = "link0";
   pose.transform.rotation.w = q_head.w();
   pose.transform.rotation.x = q_head.x();
   pose.transform.rotation.y = q_head.y();
@@ -121,6 +121,7 @@ int main(int argc, char **argv) {
   size_t sensorlen = sensor_length(num_modules);
   ekf.Q = MatrixXd::Identity(statelen, statelen);
   ekf.R = 0.1*MatrixXd::Identity(sensorlen, sensorlen);
+  ekf.R.block(num_modules, num_modules, 3*num_modules, 3*num_modules) *= 10;
   ekf.S_t = MatrixXd::Identity(statelen, statelen);
 
   ros::init(argc, argv, "estimator");
@@ -147,7 +148,14 @@ int main(int argc, char **argv) {
         "RUSnake Module #12",
         "RUSnake Module #11",
         "RUSnake Module #10",
-        "RUSnake Module #9"};
+        "RUSnake Module #9",
+        "RUSnake Module #8",
+        "RUSnake Module #6",
+        "RUSnake Module #4",
+        "RUSnake Module #3",
+        "RUSnake Module #2",
+        "RUSnake Module #1"
+};
   add_group_srv.request.families = {"*"};
   // Block until group is created
   if (!add_group_client.call(add_group_srv)) {
@@ -181,6 +189,14 @@ int main(int argc, char **argv) {
       acc_vec_ros.y = acc_vec(1);
       acc_vec_ros.z = acc_vec(2);
       measurement.accelerometer.push_back(acc_vec_ros);
+      
+      Vector3d gyro_vec;
+      get_gamma(gyro_vec, ekf.h_t, i, num_modules);
+      geometry_msgs::Vector3 gyro_vec_ros;
+      gyro_vec_ros.x = gyro_vec(0);
+      gyro_vec_ros.y = gyro_vec(1);
+      gyro_vec_ros.z = gyro_vec(2);
+      measurement.gyro.push_back(gyro_vec_ros);
     }
     meas_pub.publish(measurement);
     
