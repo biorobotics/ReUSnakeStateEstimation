@@ -70,23 +70,23 @@ void EKF::correct(const VectorXd& z_t) {
   prev_vc = h(h_t, x_t, dt, num_modules, prev_vc);
 
   // Compute difference between predicted measurement and actual
-  VectorXd sensor_diff = z_t - h_t;
+  VectorXd innovation = z_t - h_t;
   
   for (size_t i = 0; i < sensorlen; i++) {
     if (isnan(z_t(i))) {
       R(i, i) = 1000000;
-      sensor_diff(i) = -h_t(i); // i.e. treat z_t(i) as 0
+      innovation(i) = -h_t(i); // i.e. treat z_t(i) as 0
     }
   }
 
-  // For computing Kalman gain
-  MatrixXd tmp = H_t*S_t*H_t.transpose() + R;
+  // Innovation covariance, for computing Kalman gain
+  MatrixXd inn_cov = H_t*S_t*H_t.transpose() + R;
 
-  x_t = x_t + S_t*H_t.transpose()*(tmp.colPivHouseholderQr().solve(sensor_diff));
+  x_t = x_t + S_t*H_t.transpose()*(inn_cov.colPivHouseholderQr().solve(innovation));
 
   MatrixXd I;
   I.setIdentity(statelen, statelen);
-  MatrixXd K = S_t*H_t.transpose()*tmp.colPivHouseholderQr().inverse();
+  MatrixXd K = S_t*H_t.transpose()*inn_cov.colPivHouseholderQr().inverse();
   S_t = (I - K*H_t)*S_t;
 
   // Renormalize quaternion
