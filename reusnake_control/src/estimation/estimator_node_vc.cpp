@@ -19,7 +19,7 @@
 using namespace Eigen;
 using namespace hebiros;
 
-static const size_t num_modules = 11;
+static const size_t num_modules = 10;
 static const int feedback_freq = 100;
 static const double dt = 1.0/feedback_freq;
 
@@ -157,7 +157,6 @@ int main(int argc, char **argv) {
         "RUSnake Module #9",
         "RUSnake Module #8",
         "RUSnake Module #6",
-        "RUSnake Module #4",
         "RUSnake Module #3",
         "RUSnake Module #2",
         "RUSnake Module #1"

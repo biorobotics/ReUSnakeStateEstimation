@@ -51,7 +51,7 @@ void joint_state_callback(const sensor_msgs::JointStateConstPtr& joint_state)
   }
 
   builder->SetNamespace("reusnake");
-  builder->SetFrameId("link0");
+  builder->SetFrameId("head_vc");
   builder->Build(&snake_vis_array);
   // notice that this body pose is the pose between world frame and the root of the robot (link0 for reusnake)
   builder->SetPose(body_pose);
@@ -77,14 +77,14 @@ int main(int argc, char** argv) {
   builder = new robot_markers::Builder(model);
   builder->Init();
 
-  ros::Subscriber joint_state_sub = nh.subscribe("/reusnake/joint_state", 1000, joint_state_callback);
+  ros::Subscriber joint_state_sub = nh.subscribe("/reusnake/joint_state_vc", 1000, joint_state_callback);
 
   /* ROS loop */
   for (int publish_count = 0; nh.ok(); publish_count++)
   {    
     tf::StampedTransform transform;
     try{
-      tf_listener.lookupTransform("world", "link0",  
+      tf_listener.lookupTransform("world", "head_vc",  
                                 ros::Time(0), transform);
       body_pose.position.x = transform.getOrigin().x();
       body_pose.position.y = transform.getOrigin().y();
