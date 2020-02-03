@@ -99,7 +99,7 @@ void handle_feedback(FeedbackMsg msg) {
 
   pose.header.stamp = ros::Time::now();
   pose.header.frame_id = "world";
-  pose.child_frame_id = "head_vc";
+  pose.child_frame_id = "link0";
   pose.transform.rotation.w = q_head.w();
   pose.transform.rotation.x = q_head.x();
   pose.transform.rotation.y = q_head.y();
@@ -107,7 +107,7 @@ void handle_feedback(FeedbackMsg msg) {
 
   Quaterniond vc_q(vc_R);
   virtual_chassis.header.stamp = ros::Time::now();
-  virtual_chassis.header.frame_id = "head_vc";
+  virtual_chassis.header.frame_id = "link0";
   virtual_chassis.child_frame_id = "vc";
   virtual_chassis.transform.translation.x = ekf.prev_vc(0, 3);
   virtual_chassis.transform.translation.y = ekf.prev_vc(1, 3);
@@ -118,6 +118,7 @@ void handle_feedback(FeedbackMsg msg) {
   virtual_chassis.transform.rotation.z = vc_q.z();
 
   print_orientation(ekf.x_t);
+  print_angular_velocity(ekf.x_t);
 }
 
 int main(int argc, char **argv) {
@@ -125,9 +126,11 @@ int main(int argc, char **argv) {
 
   size_t statelen = state_length(num_modules);
   size_t sensorlen = sensor_length(num_modules);
-  ekf.Q = MatrixXd::Identity(statelen, statelen);
-  ekf.R = 0.1*MatrixXd::Identity(sensorlen, sensorlen);
-  ekf.R.block(num_modules, num_modules, 3*num_modules, 3*num_modules) *= 10;
+  ekf.Q = 0.01*MatrixXd::Identity(statelen, statelen);
+  ekf.Q.block(0, 0, 3, 3) *= 100;
+  ekf.R = MatrixXd::Identity(sensorlen, sensorlen);
+  ekf.R.block(0, 0, num_modules, num_modules) /= 100;
+  ekf.R.block(4*num_modules, 4*num_modules, 3*num_modules, 3*num_modules) /= 10;
   ekf.S_t = MatrixXd::Identity(statelen, statelen);
 
   ros::init(argc, argv, "estimator");
@@ -136,7 +139,7 @@ int main(int argc, char **argv) {
   // Initialize pose message 
   pose.header.stamp = ros::Time::now();
   pose.header.frame_id = "world";
-  pose.child_frame_id = "head_vc";
+  pose.child_frame_id = "link0";
   pose.transform.translation.x = 0;
   pose.transform.translation.y = 0;
   pose.transform.translation.z = 0;

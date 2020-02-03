@@ -68,8 +68,6 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
 
   set_q(x_t, q_t);
 
-  set_w(x_t, w_t);
-
   for (size_t i = 0; i < num_modules; i++) {
     // Predict joint angles
     double prev_angle = get_theta(x_t_1, i);
@@ -298,7 +296,6 @@ void init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules) {
   // Reverse yaw because that's what VINS-Fusion does
   Vector3d ypr = q_t.toRotationMatrix().eulerAngles(2, 1, 0);
   ypr(0) = -ypr(0);
-  
   Matrix3d new_rot = rotZ(ypr(0))*rotY(ypr(1))*rotX(ypr(2));
 
   Quaterniond new_q(new_rot);

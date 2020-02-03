@@ -24,7 +24,7 @@ static const double lambda = 0.25;
 static const double g = 9.8;
 
 // Perturbation used for numerical derivatives
-static const double epsilon = 0.000001;
+static const double epsilon = 0.00001;
 
 // Get state transition matrix for quaternion
 void quaternion_stm(Matrix4d& stm, Vector3d& w_t_1, double dt) {
@@ -68,8 +68,6 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
   q_t = q_t/q_t.norm();
 
   set_q(x_t, q_t);
-
-  set_w(x_t, w_t);
 
   for (size_t i = 0; i < num_modules; i++) {
     // Predict joint angles
@@ -121,11 +119,9 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules, Ma
   Matrix4d old_vc = getSnakeVirtualChassis(transforms);
   Matrix4d next_vc = getSnakeVirtualChassis(transforms);
 
-  if (prev_vc.block(0, 3, 3, 1).norm() != 0) {
-    makeVirtualChassisConsistent(prev_vc, vc);
-    makeVirtualChassisConsistent(vc, old_vc);
-    makeVirtualChassisConsistent(vc, next_vc);
-  }
+  makeVirtualChassisConsistent(prev_vc, vc);
+  makeVirtualChassisConsistent(vc, old_vc);
+  makeVirtualChassisConsistent(vc, next_vc);
 
   // Compute everything in virtual chassis frame, since that's the frame
   // whose orientation we're measuring
@@ -231,7 +227,7 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
   quaternion_stm(stm, w_t, dt);
   F_t.block(3, 3, 4, 4) = stm;
 
-  F_t.block(7, 7, 3, 3) = Matrix3d::Identity(3, 3);
+  F_t.block(7, 7, 3, 3) = Matrix3d::Identity();
 
   MatrixXd I = MatrixXd::Identity(num_modules, num_modules);
   // Joint angle Jacobian
@@ -284,7 +280,7 @@ size_t sensor_length(size_t num_modules) {
   return 7*num_modules;
 }
 
-void init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules) {
+Matrix4d init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules) {
   // We start with joint velocities of zero
   x_t = VectorXd::Zero(state_length(num_modules));
 
@@ -300,30 +296,32 @@ void init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules) {
   // and measure the initial vc orientation from that
   transformArray transforms = makeUnifiedSnake(angles);
 
+  // Virtual chassis in head frame
   Matrix4d vc = getSnakeVirtualChassis(transforms);
 
-  Vector3d a_grav_module; // virtual chassis accelerometer value
+  Vector3d a_grav_module; // module 1 accelerometer value
   get_alpha(a_grav_module, z_t, 0, num_modules);
-  Vector3d a_grav_vc = vc.block(0, 0, 3, 3).transpose()*a_grav_module;
+  Quaterniond q_module; // quaternion representing module 1 in world frame
   Vector3d a_grav(0, 0, g); // gravitational acceleration in world frame
-  Quaterniond q_t; // quaternion representing virtual chassis in world frame
-  q_t.setFromTwoVectors(a_grav_vc, a_grav);
-
-  // Reverse yaw because that's what VINS-Fusion does
-  Vector3d ypr = q_t.toRotationMatrix().eulerAngles(2, 1, 0);
-  ypr(0) = -ypr(0);
+  q_module.setFromTwoVectors(a_grav_module, a_grav);
   
+  // Reverse yaw because that's what VINS-Fusion does
+  Vector3d ypr = q_module.toRotationMatrix().eulerAngles(2, 1, 0);
+  ypr(0) = -ypr(0);
   Matrix3d new_rot = rotZ(ypr(0))*rotY(ypr(1))*rotX(ypr(2));
 
-  Quaterniond new_q(new_rot);
+  Matrix3d vc_rot = new_rot*transforms[1].block(0, 0, 3, 3).transpose()*vc.block(0, 0, 3, 3);
+  Quaterniond vc_q(vc_rot);
 
   Vector4d qvec;
-  qvec(0) = new_q.w();
-  qvec(1) = new_q.x();
-  qvec(2) = new_q.y();
-  qvec(3) = new_q.z();
+  qvec(0) = vc_q.w();
+  qvec(1) = vc_q.x();
+  qvec(2) = vc_q.y();
+  qvec(3) = vc_q.z();
   
   set_q(x_t, qvec);
+
+  return vc;
 }
 
 // Helper functions to manipulate information from state vector

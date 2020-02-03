@@ -92,9 +92,16 @@ size_t state_length(size_t num_modules);
 size_t sensor_length(size_t num_modules);
 
 /*
- * init_state: initializes the state vector using sensor readings
+ * init_state: initializes the state vector using sensor readings, returning
+ *             the virtual chassis
+ * ARGUMENTS
+ * x_t: state vector to initialize
+ * z_t: vector of sensor values to initialize with
+ * num_modules: number of modules in snake
+ * RETURN
+ * the current virtual chassis (for future corrections)
  */
-void init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules);
+Matrix4d init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules);
 
 // Helper functions to manipulate information from state vector
 
