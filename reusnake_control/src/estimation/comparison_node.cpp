@@ -19,22 +19,43 @@ int main(int argc, char **argv) {
 
   tf::TransformListener tf_listener;
   
-  ros::Rate r(50); // 10 hz
+  ros::Rate r(50); // 50 hz
+
+  bool first = true;
+  Quaterniond initial_err = Quaterniond::Identity();
   while (ros::ok()) {
     try {
       tf::StampedTransform err;
-      tf_listener.lookupTransform("head_vc", "body",  
+      tf_listener.lookupTransform("link0", "body",  
                                   ros::Time(0), err);
-      Quaterniond err_q(err.getOrigin().w(), err.getOrigin().x(), err.getOrigin().y(), err.getOrigin().z());
-      Vector3d rpy = err_q.toRotationMatrix().eulerAngles(2, 1, 0);
+      Quaterniond err_q(err.getRotation().w(),
+                        err.getRotation().x(),
+                        err.getRotation().y(),
+                        err.getRotation().z());
+      err_q = initial_err.conjugate()*err_q;
+
+      if (first) {
+        first = false;
+        initial_err = err_q;
+      }
+
+      Vector3d ypr = err_q.toRotationMatrix().eulerAngles(2, 1, 0);
      
-      printf("Difference between VINS and VC estimator - Roll: %lf Pitch: %lf Yaw: %lf\n",
-             rpy(2), rpy(1), rpy(0));
+      Vector3d err_pos(err.getOrigin().x(),
+                       err.getOrigin().y(),
+                       err.getOrigin().z());
+      if (err_pos.norm() < 10) {
+        printf("Difference between VINS and VC estimator - Roll: %lf Pitch: %lf Yaw: %lf\n",
+               ypr(2), ypr(1), ypr(0));
+      } else {
+        printf("VINS unstable. Massive position error.\n");
+        first = true;
+      }
 
       geometry_msgs::Vector3 rpy_err;
-      rpy_err.x = rpy(0);
-      rpy_err.y = rpy(1);
-      rpy_err.z = rpy(2);
+      rpy_err.x = ypr(2);
+      rpy_err.y = ypr(1);
+      rpy_err.z = ypr(0);
       err_pub.publish(rpy_err);
     }
     catch (tf::TransformException ex){
