@@ -14,9 +14,26 @@
 #include <Eigen/Dense>
 #include "ekf.hpp"
 #include "models.hpp"
+#include <numeric> // std::iota
+#include <algorithm> // std::sort, std::stable_sort
 
 using namespace Eigen;
 using namespace std;
+
+vector<size_t> sort_indices(const vector<double> &v) {
+  // initialize original index locations
+  vector<size_t> idx(v.size());
+  iota(idx.begin(), idx.end(), 0);
+
+  // sort indices based on comparing values in v
+  // using std::stable_sort instead of std::sort
+  // to avoid unnecessary index re-orderings
+  // when v contains elements of equal values 
+  stable_sort(idx.begin(), idx.end(),
+       [&v](size_t i1, size_t i2) {return v[i1] < v[i2];});
+
+  return idx;
+}
 
 EKF::EKF(double q, double r, size_t modules) {
   num_modules = modules;
@@ -77,31 +94,37 @@ void EKF::correct(const VectorXd& z_t) {
     }
   }
 
+  // Temporary matrix that we'll use a few times in the future
+  MatrixXd SHT = S_t*H_t.transpose();
   // Innovation covariance, for computing Kalman gain
-  MatrixXd inn_cov = H_t*S_t*H_t.transpose() + R;
+  MatrixXd inn_cov = H_t*SHT + R;
 
   // Outlier detection and removal (we don't perform on encoders, so remove
   // them temporarily from residual)
   size_t sensorlen_short = sensorlen - num_modules;
   size_t sensornum = 2*num_modules; // one gyro and one accelerometer per module
   VectorXd sensor_diff_short = sensor_diff.tail(sensorlen_short);
-  MatrixXd inn_cov_inv = inn_cov.block(num_modules, num_modules, sensorlen_short, sensorlen_short).colPivHouseholderQr().inverse();
+
+  LDLT<MatrixXd> inn_cov_ldlt = inn_cov.block(num_modules, num_modules, sensorlen_short, sensorlen_short).ldlt();
+
   // Vector whose ith element is the Mahalanobis distance when ith sensor is eliminated
   vector<double> ds(sensornum); 
   for (size_t s = 0; s < sensornum; s++) {
-    // Matrix to eliminate ith sensor from residual
-    MatrixXd Y_s = MatrixXd::Zero(sensorlen_short - 3, sensorlen_short);
     size_t mblock_size = s*3;
     size_t nblock_start = s*3 + 3;
     size_t nblock_size = sensorlen_short - mblock_size - 3;
-    Y_s.block(0, 0, mblock_size, mblock_size) = MatrixXd::Identity(mblock_size, mblock_size);
-    Y_s.block(mblock_size, nblock_start, nblock_size, nblock_size) = MatrixXd::Identity(nblock_size, nblock_size);
+    
+    // Matrix that moves ith sensor from residual to the end
     MatrixXd G_s = MatrixXd::Zero(sensorlen_short, sensorlen_short);
-    G_s.block(0, 0, sensorlen_short - 3, sensorlen_short) = Y_s;
-    G_s.block(s*3, sensorlen_short - 3, 3, 3) = Matrix3d::Identity();
+    G_s.block(0, 0, mblock_size, mblock_size) = MatrixXd::Identity(mblock_size, mblock_size);
+    G_s.block(mblock_size, nblock_start, nblock_size, nblock_size) = MatrixXd::Identity(nblock_size, nblock_size);
+    G_s.block(sensorlen_short - 3, mblock_size, 3, 3) = Matrix3d::Identity();
 
-    VectorXd sensor_diff_elim = Y_s*sensor_diff_short; // sensor difference with ith sensor eliminated
-    MatrixXd S_prime_inv = G_s*inn_cov_inv*G_s.transpose();
+    VectorXd sensor_diff_elim(sensorlen_short - 3); // sensor difference with ith sensor eliminated
+    sensor_diff_elim.head(mblock_size) = sensor_diff_short.head(mblock_size);
+    sensor_diff_elim.tail(nblock_size) = sensor_diff_short.tail(nblock_size);
+
+    MatrixXd S_prime_inv = G_s*inn_cov_ldlt.solve(G_s.transpose());
 
     MatrixXd A = S_prime_inv.block(0, 0, sensorlen_short - 3, sensorlen_short - 3);
     MatrixXd B = S_prime_inv.block(0, sensorlen_short - 3, sensorlen_short - 3, 3);
@@ -112,42 +135,46 @@ void EKF::correct(const VectorXd& z_t) {
 
     ds[s] = sensor_diff_elim.transpose()*inn_cov_elim_inv*sensor_diff_elim;
   }
-    
-  // Compute mean and variance of Mahalanobis distances of inliers
-  // (outliers are the four highest ones)
+
+  // Compute mean and variance of Mahalanobis distances corresponding to inliers
+  // (outliers are the four lowest ones)
   double mean_d = 0;
   double var_d = 0;
-  std::sort(ds.begin(), ds.end());
-  for (size_t s = 0; s < sensornum - 4; s++) {
-    mean_d += ds[s];
-    var_d += ds[s]*ds[s];
+  vector<size_t> indices = sort_indices(ds);
+  for (size_t i = 4; i < sensornum; i++) {
+    double d = ds[indices[i]];
+    mean_d += d;
+    var_d += d*d;
   }
-  var_d += mean_d*mean_d/(sensornum - 4);
+  var_d -= mean_d*mean_d/(sensornum - 4);
   mean_d /= (sensornum - 4);
   var_d /= (sensornum - 5);
   
   // Mark outliers based on Mahalanobis distance of their Mahalanobis distance
   // from the mean Mahalanobis distance of the inliers
-  for (size_t s = 0; s < sensornum; s++) {
+  for (size_t i = 0; i < sensornum; i++) {
+    size_t s = indices[i];
     double w = pow(ds[s] - mean_d, 2)/var_d;
     if (w > 15) {
-      size_t i = num_modules + 3*s;
-      R.block(i, i, 3, 3) = 1000000*Matrix3d::Identity();
-      sensor_diff(i) = -h_t(i); // i.e. treat z_t(i) as 0
-      sensor_diff(i + 1) = -h_t(i + 1);
-      sensor_diff(i + 2) = -h_t(i + 2);
+      size_t j = num_modules + 3*s;
+      R.block(j, j, 3, 3) = 1000000*Matrix3d::Identity();
+      sensor_diff(j) = -h_t(j); // i.e. treat z_t(j) as 0
+      sensor_diff(j + 1) = -h_t(j + 1);
+      sensor_diff(j + 2) = -h_t(j + 2);
     }
   }
 
   // Compute new innovation covariance
-  inn_cov = H_t*S_t*H_t.transpose() + R;
+  inn_cov = H_t*SHT + R;
 
-  x_t = x_t + S_t*H_t.transpose()*(inn_cov.colPivHouseholderQr().solve(sensor_diff));
+  inn_cov_ldlt = inn_cov.ldlt();
+  x_t = x_t + SHT*(inn_cov_ldlt.solve(sensor_diff));
 
   MatrixXd I;
   I.setIdentity(statelen, statelen);
-  MatrixXd K = S_t*H_t.transpose()*inn_cov.colPivHouseholderQr().inverse();
-  S_t = (I - K*H_t)*S_t;
+
+  // SHT*inn_cov_ldlt.inverse() is the Kalman gain
+  S_t = (I - SHT*inn_cov_ldlt.solve(H_t))*S_t;
 
   // Renormalize quaternion
   Vector4d q_t;
