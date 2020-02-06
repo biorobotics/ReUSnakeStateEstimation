@@ -15,6 +15,18 @@
 using namespace Eigen;
 
 /*
+ * get_head_kinematics: get the acceleration and angular velocity of the head
+ *                      given the current state
+ * ARGUMENTS
+ * accel: acceleration of the head
+ * ang_vel: angular velocity of the head
+ * x_t: current state
+ * num_modules: number of modules in snake
+ */
+void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, VectorXd& x_t,
+                         size_t num_modules, double dt);
+
+/*
  * f: predicts current state given previous state and time interval
  * (process model)
  * ARGUMENTS

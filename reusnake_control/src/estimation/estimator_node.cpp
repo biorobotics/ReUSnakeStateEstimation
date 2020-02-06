@@ -111,7 +111,7 @@ void handle_feedback(FeedbackMsg msg) {
   pose.transform.rotation.y = q_head.y();
   pose.transform.rotation.z = q_head.z();
 
-  print_orientation(ekf.x_t);
+  cout << q_head.w() << " " << q_head.vec() << "\n\n";
 }
 
 int main(int argc, char **argv) {
@@ -119,10 +119,12 @@ int main(int argc, char **argv) {
 
   size_t statelen = state_length(num_modules);
   size_t sensorlen = sensor_length(num_modules);
-  ekf.Q = MatrixXd::Identity(statelen, statelen);
+  ekf.Q = 0.01*MatrixXd::Identity(statelen, statelen);
+  ekf.Q.block(0, 0, 3, 3) *= 100;
   ekf.R = MatrixXd::Identity(sensorlen, sensorlen);
-  ekf.R.block(0, 0, num_modules, num_modules) /= 10;
-  ekf.S_t = MatrixXd::Identity(statelen, statelen);
+  ekf.R.block(0, 0, num_modules, num_modules) /= 100;
+  ekf.R.block(4*num_modules, 4*num_modules, 3*num_modules, 3*num_modules) /= 10;
+  ekf.S_t = 0.01*MatrixXd::Identity(statelen, statelen);
 
   ros::init(argc, argv, "estimator");
   ros::NodeHandle n;
@@ -140,6 +142,7 @@ int main(int argc, char **argv) {
   pose.transform.rotation.y = 0;
   pose.transform.rotation.z = 0;
   
+  /*
   // Initialize group using hebiros node
   ros::ServiceClient add_group_client = n.serviceClient<AddGroupFromNamesSrv>("hebiros/add_group_from_names");
   AddGroupFromNamesSrv add_group_srv;
@@ -167,6 +170,7 @@ int main(int argc, char **argv) {
   SetFeedbackFrequencySrv set_freq_srv;
   set_freq_srv.request.feedback_frequency = feedback_freq;
   set_freq_client.call(set_freq_srv);
+  */
 
   joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 100);
   meas_pub = n.advertise<hebiros::FeedbackMsg>("/reusnake/measurement_model", 100);

@@ -9,6 +9,7 @@
 #include "hebiros/AddGroupFromNamesSrv.h"
 #include "hebiros/SetFeedbackFrequencySrv.h"
 #include <sensor_msgs/JointState.h>
+#include <sensor_msgs/Imu.h>
 #include "SnakeKinematics.h"
 #include <iostream>
 
@@ -27,6 +28,11 @@ static VectorXd z_t(7*num_modules);
 static EKF ekf(1, 1, num_modules);
 static ros::Publisher joint_pub;
 static ros::Publisher meas_pub;
+
+// Publish the expected imu measurement if there were an imu on the head
+static ros::Publisher head_imu_pub; 
+static sensor_msgs::Imu head_imu;
+
 static sensor_msgs::JointState joint_state;
 static geometry_msgs::TransformStamped pose;
 static geometry_msgs::TransformStamped virtual_chassis;
@@ -97,7 +103,6 @@ void handle_feedback(FeedbackMsg msg) {
   Quaterniond q_vc_head(vc_R);
   Quaterniond q_head = q_vc_world*q_vc_head.conjugate();
 
-  pose.header.stamp = ros::Time::now();
   pose.header.frame_id = "world";
   pose.child_frame_id = "link0";
   pose.transform.rotation.w = q_head.w();
@@ -106,7 +111,6 @@ void handle_feedback(FeedbackMsg msg) {
   pose.transform.rotation.z = q_head.z();
 
   Quaterniond vc_q(vc_R);
-  virtual_chassis.header.stamp = ros::Time::now();
   virtual_chassis.header.frame_id = "link0";
   virtual_chassis.child_frame_id = "vc";
   virtual_chassis.transform.translation.x = ekf.prev_vc(0, 3);
@@ -117,8 +121,18 @@ void handle_feedback(FeedbackMsg msg) {
   virtual_chassis.transform.rotation.y = vc_q.y();
   virtual_chassis.transform.rotation.z = vc_q.z();
 
-  print_orientation(ekf.x_t);
-  print_angular_velocity(ekf.x_t);
+  // Calculate the expected imu measurement from the head
+  Vector3d head_accel;
+  Vector3d head_gyro;
+  get_head_kinematics(head_accel, head_gyro, ekf.x_t, num_modules, dt);
+
+  head_imu.linear_acceleration.x = head_accel(0);
+  head_imu.linear_acceleration.y = head_accel(1);
+  head_imu.linear_acceleration.z = head_accel(2);
+  
+  head_imu.angular_velocity.x = head_gyro(0);
+  head_imu.angular_velocity.y = head_gyro(1);
+  head_imu.angular_velocity.z = head_gyro(2);
 }
 
 int main(int argc, char **argv) {
@@ -126,18 +140,17 @@ int main(int argc, char **argv) {
 
   size_t statelen = state_length(num_modules);
   size_t sensorlen = sensor_length(num_modules);
-  ekf.Q = 0.01*MatrixXd::Identity(statelen, statelen);
-  ekf.Q.block(0, 0, 3, 3) *= 100;
+
+  ekf.Q = MatrixXd::Identity(statelen, statelen);
   ekf.R = MatrixXd::Identity(sensorlen, sensorlen);
   ekf.R.block(0, 0, num_modules, num_modules) /= 100;
   ekf.R.block(4*num_modules, 4*num_modules, 3*num_modules, 3*num_modules) /= 10;
-  ekf.S_t = MatrixXd::Identity(statelen, statelen);
+  ekf.S_t = 0.01*MatrixXd::Identity(statelen, statelen);
 
   ros::init(argc, argv, "estimator");
   ros::NodeHandle n;
   
   // Initialize pose message 
-  pose.header.stamp = ros::Time::now();
   pose.header.frame_id = "world";
   pose.child_frame_id = "link0";
   pose.transform.translation.x = 0;
@@ -178,12 +191,15 @@ int main(int argc, char **argv) {
   set_freq_client.call(set_freq_srv);
 
   joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 100);
-  meas_pub = n.advertise<hebiros::FeedbackMsg>("/reusnake/measurement_model", 100);
+  meas_pub = n.advertise<sensor_msgs::JointState>("/reusnake/measurement_model", 100);
+  head_imu_pub = n.advertise<sensor_msgs::Imu>("/reusnake/head_imu", 100);
   ros::Subscriber feedback_sub = n.subscribe("/hebiros/RUSNAKE/feedback", 100, handle_feedback);
 
   tf2_ros::TransformBroadcaster pose_br;
   ros::Rate r(50); // 10 hz
   while (ros::ok()) {
+    pose.header.stamp = ros::Time::now();
+    virtual_chassis.header.stamp = ros::Time::now();
     pose_br.sendTransform(pose);
     pose_br.sendTransform(virtual_chassis);
     joint_pub.publish(joint_state);
@@ -208,6 +224,9 @@ int main(int argc, char **argv) {
       measurement.gyro.push_back(gyro_vec_ros);
     }
     meas_pub.publish(measurement);
+
+    head_imu.header.stamp = ros::Time::now();
+    head_imu_pub.publish(head_imu);
     
     r.sleep();
     ros::spinOnce();

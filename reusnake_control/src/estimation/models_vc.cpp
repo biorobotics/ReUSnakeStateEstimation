@@ -45,6 +45,93 @@ void quaternion_stm(Matrix4d& stm, Vector3d& w_t_1, double dt) {
   }
 }
 
+void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, VectorXd& x_t,
+                         size_t num_modules, double dt) {
+  vector<double> angles(num_modules);
+  vector<double> prev_angles(num_modules);
+  vector<double> next_angles(num_modules);
+  for (size_t i = 0; i < num_modules; i++) {
+    angles[i] = get_theta(x_t, i);
+
+    // Use joint velocities to estimate angles forward and backward in time
+    double dtheta = get_theta_dot(x_t, i, num_modules)*dt;
+    prev_angles[i] = angles[i] - dtheta;
+    next_angles[i] = angles[i] + dtheta;
+  }
+
+  // Compute snake kinematics (module frames with respect to head frame)
+  transformArray transforms = makeUnifiedSnake(angles);
+
+  // We need the transforms at the previous and next time step
+  // for the gyro prediction
+  transformArray prev_transforms = makeUnifiedSnake(prev_angles);
+  transformArray next_transforms = makeUnifiedSnake(next_angles);
+
+  // Compute virtual chassis
+  Matrix4d vc = getSnakeVirtualChassis(transforms);
+  Matrix4d old_vc = getSnakeVirtualChassis(transforms);
+  Matrix4d next_vc = getSnakeVirtualChassis(transforms);
+
+  makeVirtualChassisConsistent(vc, old_vc);
+  makeVirtualChassisConsistent(vc, next_vc);
+
+  Matrix3d vc_R = vc.block(0, 0, 3, 3);
+
+  // Invert orientation quaternion and convert it into rotation matrix
+  Vector4d qvec;
+  get_q(qvec, x_t);
+  Quaterniond q_inv(qvec(0), -qvec(1), -qvec(2), -qvec(3));
+ 
+  // Rotation matrix of world frame with respect to virtual chassis frame
+  Matrix3d V_t(q_inv);
+
+  // Perceived acceleration due to gravity in world frame
+  Vector3d gvec(0, 0, g);
+
+  // Perceived acceleration due to gravity in head frame
+  Vector3d a_grav = vc_R*V_t*gvec;
+
+  // Double differentiate virtual chassis position in head frame for
+  // "internal acceleration" of head frame wrt virtual chassis frame
+  // (represented in the head frame)
+  Vector3d position = vc.block(0, 3, 3, 1);
+  Vector3d prev_position = old_vc.block(0, 3, 3, 1);
+  Vector3d next_position = next_vc.block(0, 3, 3, 1);
+
+  Vector3d a_internal = -(next_position - 2*position + prev_position)/(dt*dt);
+
+  // Acceleration of virtual chassis in world frame
+  Vector3d vc_accel;
+  get_a(vc_accel, x_t);
+  
+  // Acceleration of virtual chassis in head frame
+  Vector3d a_vc = vc_R*V_t*vc_accel;
+
+  // Populate head acceleration
+  accel = a_grav + a_internal + a_vc;
+  
+  /* Angular velocity calculations */
+
+  // Orientations of head wrt vc
+  Matrix3d head_R = vc_R.transpose();
+  Matrix3d old_head_R = old_vc.block(0, 0, 3, 3).transpose();
+
+  Matrix3d head_R_dot = (head_R - old_head_R)/dt;
+  Matrix3d velocity_matrix = head_R_dot*head_R.transpose();
+  Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));
+  w_internal = vc_R*w_internal;
+
+  // Compute angular velocity of vc in module frame
+  Vector3d w_t;
+  get_w(w_t, x_t);
+  Vector3d w_t_module = vc_R*w_t;
+
+  // Populate gyro values
+  ang_vel(0) = w_internal(0) + w_t_module(0);
+  ang_vel(1) = w_internal(1) + w_t_module(1);
+  ang_vel(2) = w_internal(2) + w_t_module(2);
+} 
+
 void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
        double dt, size_t num_modules) {
   // Predict acceleration
