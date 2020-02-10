@@ -92,6 +92,8 @@ target_link_libraries( control
 target_link_libraries(estimator_node ${catkin_LIBRARIES})
 		  add_executable(estimator_node_vc src/estimation/estimator_node_vc.cpp $<TARGET_OBJECTS:estimation_vc>)
 target_link_libraries(estimator_node_vc ${catkin_LIBRARIES})
+		  add_executable(complementary_node src/estimation/complementary_node.cpp)
+target_link_libraries(complementary_node ${catkin_LIBRARIES})
 		  add_executable(comparison_node src/estimation/comparison_node.cpp)
 target_link_libraries(comparison_node ${catkin_LIBRARIES})
 
