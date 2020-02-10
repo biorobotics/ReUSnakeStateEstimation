@@ -142,7 +142,6 @@ int main(int argc, char **argv) {
   pose.transform.rotation.y = 0;
   pose.transform.rotation.z = 0;
   
-  /*
   // Initialize group using hebiros node
   ros::ServiceClient add_group_client = n.serviceClient<AddGroupFromNamesSrv>("hebiros/add_group_from_names");
   AddGroupFromNamesSrv add_group_srv;
@@ -170,7 +169,6 @@ int main(int argc, char **argv) {
   SetFeedbackFrequencySrv set_freq_srv;
   set_freq_srv.request.feedback_frequency = feedback_freq;
   set_freq_client.call(set_freq_srv);
-  */
 
   joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 100);
   meas_pub = n.advertise<hebiros::FeedbackMsg>("/reusnake/measurement_model", 100);
