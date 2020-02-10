@@ -142,6 +142,7 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
   // Predict orientation
   Vector3d w_t;
   get_w(w_t, x_t_1);
+  w_t = exp(-tau*dt)*w_t;
   set_w(x_t, w_t);
   
   Matrix4d stm;
@@ -266,8 +267,11 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules, Ma
     Matrix3d R = transforms[i + 1].block(0, 0, 3, 3);
     Matrix3d prev_R = prev_transforms[i + 1].block(0, 0, 3, 3);
 
+    /*
     Matrix3d R_dot = (R - prev_R)/dt;
     Matrix3d velocity_matrix = R_dot*R.transpose();
+    */
+    Matrix3d velocity_matrix = R*prev_R.transpose()/dt;
     Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));
     w_internal = R_inv*w_internal;
 
@@ -309,12 +313,13 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
   // is simply the state transition matrix
   Vector3d w_t;
   get_w(w_t, x_t_1);
+  w_t = exp(-tau*dt)*w_t;
 
   Matrix4d stm;
   quaternion_stm(stm, w_t, dt);
   F_t.block(3, 3, 4, 4) = stm;
 
-  F_t.block(7, 7, 3, 3) = Matrix3d::Identity();
+  F_t.block(7, 7, 3, 3) = exp(-tau*dt)*Matrix3d::Identity();
 
   MatrixXd I = MatrixXd::Identity(num_modules, num_modules);
   // Joint angle Jacobian
@@ -391,11 +396,10 @@ Matrix4d init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules) {
   Quaterniond q_module; // quaternion representing module 1 in world frame
   Vector3d a_grav(0, 0, g); // gravitational acceleration in world frame
   q_module.setFromTwoVectors(a_grav_module, a_grav);
-  
-  // Reverse yaw because that's what VINS-Fusion does
+
+  // Set yaw to 0
   Vector3d ypr = q_module.toRotationMatrix().eulerAngles(2, 1, 0);
-  ypr(0) = -ypr(0);
-  Matrix3d new_rot = rotZ(ypr(0))*rotY(ypr(1))*rotX(ypr(2));
+  Matrix3d new_rot = rotY(ypr(1))*rotX(ypr(2));
 
   Matrix3d vc_rot = new_rot*transforms[1].block(0, 0, 3, 3).transpose()*vc.block(0, 0, 3, 3);
   Quaterniond vc_q(vc_rot);

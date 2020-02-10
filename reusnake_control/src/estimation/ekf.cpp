@@ -105,7 +105,7 @@ void EKF::correct(const VectorXd& z_t) {
   size_t sensornum = 2*num_modules; // one gyro and one accelerometer per module
   VectorXd sensor_diff_short = sensor_diff.tail(sensorlen_short);
 
-  LLT<MatrixXd> inn_cov_llt = inn_cov.block(num_modules, num_modules, sensorlen_short, sensorlen_short).llt();
+  LDLT<MatrixXd> inn_cov_ldlt = inn_cov.block(num_modules, num_modules, sensorlen_short, sensorlen_short).ldlt();
 
   // Vector whose ith element is the Mahalanobis distance when ith sensor is eliminated
   vector<double> ds(sensornum); 
@@ -124,7 +124,7 @@ void EKF::correct(const VectorXd& z_t) {
     sensor_diff_elim.head(mblock_size) = sensor_diff_short.head(mblock_size);
     sensor_diff_elim.tail(nblock_size) = sensor_diff_short.tail(nblock_size);
 
-    MatrixXd S_prime_inv = G_s*inn_cov_llt.solve(G_s.transpose());
+    MatrixXd S_prime_inv = G_s*inn_cov_ldlt.solve(G_s.transpose());
 
     MatrixXd A = S_prime_inv.block(0, 0, sensorlen_short - 3, sensorlen_short - 3);
     MatrixXd B = S_prime_inv.block(0, sensorlen_short - 3, sensorlen_short - 3, 3);
@@ -152,29 +152,27 @@ void EKF::correct(const VectorXd& z_t) {
   
   // Mark outliers based on Mahalanobis distance of their Mahalanobis distance
   // from the mean Mahalanobis distance of the inliers
+  MatrixXd old_R = R.block(0, 0, sensorlen, sensorlen);
   for (size_t i = 0; i < sensornum; i++) {
     size_t s = indices[i];
     double w = pow(ds[s] - mean_d, 2)/var_d;
-    if (w > 2000) {
+    if (w > 15) {
       size_t j = num_modules + 3*s;
       R.block(j, j, 3, 3) = 1000000*Matrix3d::Identity();
-      sensor_diff(j) = -h_t(j); // i.e. treat z_t(j) as 0
-      sensor_diff(j + 1) = -h_t(j + 1);
-      sensor_diff(j + 2) = -h_t(j + 2);
     }
   }
 
   // Compute new innovation covariance
   inn_cov = H_t*SHT + R;
 
-  inn_cov_llt = inn_cov.llt();
-  x_t = x_t + SHT*(inn_cov_llt.solve(sensor_diff));
+  inn_cov_ldlt = inn_cov.ldlt();
+  x_t = x_t + SHT*(inn_cov_ldlt.solve(sensor_diff));
 
   MatrixXd I;
   I.setIdentity(statelen, statelen);
 
-  // SHT*inn_cov_llt.inverse() is the Kalman gain
-  S_t = (I - SHT*inn_cov_llt.solve(H_t))*S_t;
+  // SHT*inn_cov_ldlt.inverse() is the Kalman gain
+  S_t = (I - SHT*inn_cov_ldlt.solve(H_t))*S_t;
 
   // Renormalize quaternion
   Vector4d q_t;
@@ -182,6 +180,7 @@ void EKF::correct(const VectorXd& z_t) {
 
   q_t = q_t/sqrt(q_t.squaredNorm());
   set_q(x_t, q_t);
+  R = old_R;
 }
 
 void EKF::initialize(const VectorXd& z_t) {

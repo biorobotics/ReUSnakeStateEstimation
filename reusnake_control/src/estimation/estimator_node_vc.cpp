@@ -141,11 +141,16 @@ int main(int argc, char **argv) {
   size_t statelen = state_length(num_modules);
   size_t sensorlen = sensor_length(num_modules);
 
-  ekf.Q = MatrixXd::Identity(statelen, statelen);
+  //ekf.Q = 0.01*MatrixXd::Identity(statelen, statelen);
+  ekf.Q = 0.00001*MatrixXd::Identity(statelen, statelen);
+  ekf.Q.block(0, 0, 3, 3) *= 100000;
+  ekf.Q.block(7, 7, 3, 3) *= 100;
   ekf.R = MatrixXd::Identity(sensorlen, sensorlen);
   ekf.R.block(0, 0, num_modules, num_modules) /= 100;
-  ekf.R.block(4*num_modules, 4*num_modules, 3*num_modules, 3*num_modules) /= 10;
-  ekf.S_t = 0.01*MatrixXd::Identity(statelen, statelen);
+  //ekf.R.block(4*num_modules, 4*num_modules, 3*num_modules, 3*num_modules) /= 10;
+  ekf.R.block(num_modules, num_modules, 3*num_modules, 3*num_modules) /= 20;
+  ekf.R.block(4*num_modules, 4*num_modules, 3*num_modules, 3*num_modules) /= 2;
+  ekf.S_t = 0.001*MatrixXd::Identity(statelen, statelen);
 
   ros::init(argc, argv, "estimator");
   ros::NodeHandle n;
@@ -162,6 +167,7 @@ int main(int argc, char **argv) {
   pose.transform.rotation.y = 0;
   pose.transform.rotation.z = 0;
   
+  /*
   // Initialize group using hebiros node
   ros::ServiceClient add_group_client = n.serviceClient<AddGroupFromNamesSrv>("hebiros/add_group_from_names");
   AddGroupFromNamesSrv add_group_srv;
@@ -189,9 +195,10 @@ int main(int argc, char **argv) {
   SetFeedbackFrequencySrv set_freq_srv;
   set_freq_srv.request.feedback_frequency = feedback_freq;
   set_freq_client.call(set_freq_srv);
+  */
 
   joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 100);
-  meas_pub = n.advertise<sensor_msgs::JointState>("/reusnake/measurement_model", 100);
+  meas_pub = n.advertise<hebiros::FeedbackMsg>("/reusnake/measurement_model", 100);
   head_imu_pub = n.advertise<sensor_msgs::Imu>("/reusnake/head_imu", 100);
   ros::Subscriber feedback_sub = n.subscribe("/hebiros/RUSNAKE/feedback", 100, handle_feedback);
 
