@@ -48,9 +48,8 @@ EKF::EKF(double q, double r, size_t modules) {
   I.setIdentity(sensorlen, sensorlen);
   R = r*I;
 
+  x_t = VectorXd::Zero(statelen);
   h_t = VectorXd::Zero(sensorlen);
-
-  prev_vc = Matrix4d::Identity();
 }
 
 EKF::EKF(MatrixXd& _Q, MatrixXd& _R, MatrixXd& _S, size_t modules) {
@@ -81,10 +80,10 @@ void EKF::predict(const VectorXd& u_t, double _dt) {
 void EKF::correct(const VectorXd& z_t) {
   // Compute Jacobian of sensor model
   MatrixXd H_t(sensorlen, statelen);
-  dh(H_t, x_t, dt, num_modules, prev_vc);
+  dh(H_t, x_t, dt, num_modules, vc);
 
   // Compute expected measurement
-  prev_vc = h(h_t, x_t, dt, num_modules, prev_vc);
+  vc = h(h_t, x_t, dt, num_modules, vc);
 
   // Compute difference between predicted measurement and actual
   // (innovation residual)
@@ -159,9 +158,10 @@ void EKF::correct(const VectorXd& z_t) {
   for (size_t i = 0; i < sensornum; i++) {
     size_t s = indices[i];
     double w = pow(ds[s] - mean_d, 2)/var_d;
-    if (w > 15) { // 15
+    if (w > 90 || s == 6) {//15
       size_t j = num_modules + 3*s;
       R.block(j, j, 3, 3) = 1000000*Matrix3d::Identity();
+      sensor_diff(j) = 0;
     }
   }
 
@@ -171,8 +171,7 @@ void EKF::correct(const VectorXd& z_t) {
   inn_cov_ldlt = inn_cov.ldlt();
   x_t = x_t + SHT*(inn_cov_ldlt.solve(sensor_diff));
 
-  MatrixXd I;
-  I.setIdentity(statelen, statelen);
+  MatrixXd I = MatrixXd::Identity(statelen, statelen);
 
   // SHT*inn_cov_ldlt.inverse() is the Kalman gain
   S_t = (I - SHT*inn_cov_ldlt.solve(H_t))*S_t;
@@ -187,5 +186,5 @@ void EKF::correct(const VectorXd& z_t) {
 }
 
 void EKF::initialize(const VectorXd& z_t) {
-  prev_vc = init_state(x_t, z_t, num_modules);
+  init_state(x_t, z_t, num_modules);
 }

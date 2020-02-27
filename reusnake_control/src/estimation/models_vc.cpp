@@ -76,6 +76,8 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, VectorXd& x_t,
   makeVirtualChassisConsistent(vc, next_vc);
 
   Matrix3d vc_R = vc.block(0, 0, 3, 3);
+  Matrix3d old_vc_R = old_vc.block(0, 0, 3, 3);
+  Matrix3d next_vc_R = next_vc.block(0, 0, 3, 3);
 
   // Invert orientation quaternion and convert it into rotation matrix
   Vector4d qvec;
@@ -98,7 +100,9 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, VectorXd& x_t,
   Vector3d prev_position = old_vc.block(0, 3, 3, 1);
   Vector3d next_position = next_vc.block(0, 3, 3, 1);
 
-  Vector3d a_internal = -(next_position - 2*position + prev_position)/(dt*dt);
+  Vector3d a_internal = -vc_R*(next_vc_R.transpose()*next_position -
+                          2*vc_R.transpose()*position + 
+                          old_vc_R*prev_position)/(dt*dt);
 
   // Acceleration of virtual chassis in world frame
   Vector3d vc_accel;
@@ -112,24 +116,23 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, VectorXd& x_t,
   
   /* Angular velocity calculations */
 
+  /*
   // Orientations of head wrt vc
   Matrix3d head_R = vc_R.transpose();
   Matrix3d old_head_R = old_vc.block(0, 0, 3, 3).transpose();
 
-  Matrix3d head_R_dot = (head_R - old_head_R)/dt;
-  Matrix3d velocity_matrix = head_R_dot*head_R.transpose();
+  Matrix3d velocity_matrix = head_R*old_head_R.transpose()/dt;
   Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));
-  w_internal = vc_R*w_internal;
+  */
 
   // Compute angular velocity of vc in module frame
   Vector3d w_t;
   get_w(w_t, x_t);
-  Vector3d w_t_module = vc_R*w_t;
+  Vector3d w_t_head = vc_R*w_t;
 
   // Populate gyro values
-  ang_vel(0) = w_internal(0) + w_t_module(0);
-  ang_vel(1) = w_internal(1) + w_t_module(1);
-  ang_vel(2) = w_internal(2) + w_t_module(2);
+  //ang_vel = w_internal + w_t_head;
+  ang_vel = w_t_head;
 } 
 
 void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
@@ -142,11 +145,11 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
   // Predict orientation
   Vector3d w_t;
   get_w(w_t, x_t_1);
-  w_t = exp(-tau*dt)*w_t;
   set_w(x_t, w_t);
   
   Matrix4d stm;
   quaternion_stm(stm, w_t, dt);
+  set_w(x_t, w_t);
 
   Vector4d q_t_1;
   get_q(q_t_1, x_t_1);
@@ -178,7 +181,7 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
   }
 }
 
-Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules, Matrix4d prev_vc) {
+Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules, const Matrix4d& prev_vc) {
   vector<double> angles(num_modules);
   vector<double> prev_angles(num_modules);
   vector<double> next_angles(num_modules);
@@ -263,17 +266,14 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules, Ma
     
     /* Gyro calculations */
 
+    /*
     // Current and previous rotation matrix of module frame with respect to vc frame
     Matrix3d R = transforms[i + 1].block(0, 0, 3, 3);
     Matrix3d prev_R = prev_transforms[i + 1].block(0, 0, 3, 3);
 
-    /*
-    Matrix3d R_dot = (R - prev_R)/dt;
-    Matrix3d velocity_matrix = R_dot*R.transpose();
-    */
     Matrix3d velocity_matrix = R*prev_R.transpose()/dt;
     Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));
-    w_internal = R_inv*w_internal;
+    */
 
     // Compute angular velocity of vc in module frame
     Vector3d w_t;
@@ -281,10 +281,8 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules, Ma
     Vector3d w_t_module = R_inv*w_t;
 
     // Populate gyro values
-    Vector3d gamma_t;
-    gamma_t(0) = w_internal(0) + w_t_module(0);
-    gamma_t(1) = w_internal(1) + w_t_module(1);
-    gamma_t(2) = w_internal(2) + w_t_module(2);
+    //Vector3d gamma_t = w_internal + w_t_module;
+    Vector3d gamma_t = w_t_module;
 
     set_gamma(z_t, gamma_t, i, num_modules);
   }
@@ -313,13 +311,12 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
   // is simply the state transition matrix
   Vector3d w_t;
   get_w(w_t, x_t_1);
-  w_t = exp(-tau*dt)*w_t;
 
   Matrix4d stm;
   quaternion_stm(stm, w_t, dt);
   F_t.block(3, 3, 4, 4) = stm;
 
-  F_t.block(7, 7, 3, 3) = exp(-tau*dt)*Matrix3d::Identity();
+  F_t.block(7, 7, 3, 3) = Matrix3d::Identity();
 
   MatrixXd I = MatrixXd::Identity(num_modules, num_modules);
   // Joint angle Jacobian
@@ -329,6 +326,23 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
   // Joint velocity Jacobian
   F_t.block(10 + num_modules, 10 + num_modules,
             num_modules, num_modules) = (1 - lambda)*I;
+
+  Vector4d q_t_1;
+  get_q(q_t_1, x_t_1);
+  for (size_t i = 0; i < 3; i++) {
+    // Perturb component of angular velocity
+    Vector3d w_t_plus(w_t);
+    Vector3d w_t_minus(w_t);
+    w_t_plus(i) += epsilon;
+    w_t_minus(i) -= epsilon;
+
+    quaternion_stm(stm, w_t_plus, dt);
+    Vector4d q_t_plus = stm*q_t_1;
+    quaternion_stm(stm, w_t_minus, dt);
+    Vector4d q_t_minus = stm*q_t_1;
+
+    F_t.block(3, 7 + i, 4, 1) = (q_t_plus - q_t_minus)/(2*epsilon);
+  }
 }
 
 /*
@@ -337,9 +351,9 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
 * x_t: state to evaluate Jacobian
 * dt: time step
 * num_modules: number of modules in the snake
+* prev_vc: the previous virtual chassis, for correction
 */
-void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules,
-        Matrix4d prev_vc) {
+void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules, const Matrix4d& prev_vc) {
   size_t statelen = state_length(num_modules);
   size_t sensorlen = sensor_length(num_modules);
   for (size_t col = 0; col < statelen; col++) {
@@ -354,8 +368,20 @@ void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules,
     VectorXd z_t_minus(sensorlen);
     h(z_t_minus, x_t_minus, dt, num_modules, prev_vc);
 
+    // Five point stencil, doesn't really help
+    VectorXd x_t_plus2(x_t);
+    VectorXd x_t_minus2(x_t);
+    x_t_plus(col) += 2*epsilon;
+    x_t_minus(col) -= 2*epsilon;
+
+    VectorXd z_t_plus2(sensorlen);
+    h(z_t_plus2, x_t_plus2, dt, num_modules, prev_vc);
+    VectorXd z_t_minus2(sensorlen);
+    h(z_t_minus2, x_t_minus2, dt, num_modules, prev_vc);
+
     // Compute derivative
-    VectorXd dz_t = (z_t_plus - z_t_minus)/(2*epsilon);
+    //VectorXd dz_t = (z_t_plus - z_t_minus)/(2*epsilon);
+    VectorXd dz_t = (-z_t_plus2 + 8*z_t_plus - 8*z_t_minus + z_t_minus2)/(12*epsilon);
 
     H_t.block(0, col, sensorlen, 1) = dz_t;
   }

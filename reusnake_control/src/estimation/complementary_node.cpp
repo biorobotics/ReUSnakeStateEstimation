@@ -159,7 +159,7 @@ int main(int argc, char **argv) {
   ros::Subscriber feedback_sub = n.subscribe("/hebiros/RUSNAKE/feedback", 100, handle_feedback);
 
   tf2_ros::TransformBroadcaster pose_br;
-  ros::Rate r(50); // 10 hz
+  ros::Rate r(50);
   while (ros::ok()) {
     pose_br.sendTransform(pose);
     r.sleep();

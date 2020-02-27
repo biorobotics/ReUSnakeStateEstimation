@@ -11,6 +11,7 @@
 #include <sensor_msgs/JointState.h>
 #include <sensor_msgs/Imu.h>
 #include "SnakeKinematics.h"
+#include "VirtualChassisKinematics.h"
 #include <iostream>
 
 /* This file performs estimation by subscribing to feedback
@@ -89,37 +90,41 @@ void handle_feedback(FeedbackMsg msg) {
  
   for (size_t i = 0; i < num_modules; i++) { 
     double theta = get_theta(ekf.x_t, i);
+    double theta_dot = get_theta_dot(ekf.x_t, i, num_modules);
     if (joint_state.position.size() <= i) { 
       joint_state.position.push_back(theta);
+      joint_state.velocity.push_back(theta_dot);
     } else {
       joint_state.position[i] = theta;
+      joint_state.velocity[i] = theta_dot;
     }
   }
   Vector4d q_t;
   get_q(q_t, ekf.x_t);
 
   Quaterniond q_vc_world(q_t(0), q_t(1), q_t(2), q_t(3));
-  Matrix3d vc_R = ekf.prev_vc.block(0, 0, 3, 3);
+  Matrix3d vc_R = ekf.vc.block(0, 0, 3, 3);
   Quaterniond q_vc_head(vc_R);
-  Quaterniond q_head = q_vc_world*q_vc_head.conjugate();
+  Quaterniond q_head = q_vc_head.conjugate();
 
-  pose.header.frame_id = "world";
+  pose.header.frame_id = "vc";
   pose.child_frame_id = "link0";
   pose.transform.rotation.w = q_head.w();
   pose.transform.rotation.x = q_head.x();
   pose.transform.rotation.y = q_head.y();
   pose.transform.rotation.z = q_head.z();
 
-  Quaterniond vc_q(vc_R);
-  virtual_chassis.header.frame_id = "link0";
+  Vector3d head_translation = -vc_R.transpose()*ekf.vc.block(0, 3, 3, 1);
+  pose.transform.translation.x = head_translation(0);
+  pose.transform.translation.y = head_translation(1);
+  pose.transform.translation.z = head_translation(2);
+
+  virtual_chassis.header.frame_id = "world";
   virtual_chassis.child_frame_id = "vc";
-  virtual_chassis.transform.translation.x = ekf.prev_vc(0, 3);
-  virtual_chassis.transform.translation.y = ekf.prev_vc(1, 3);
-  virtual_chassis.transform.translation.z = ekf.prev_vc(2, 3);
-  virtual_chassis.transform.rotation.w = vc_q.w();
-  virtual_chassis.transform.rotation.x = vc_q.x();
-  virtual_chassis.transform.rotation.y = vc_q.y();
-  virtual_chassis.transform.rotation.z = vc_q.z();
+  virtual_chassis.transform.rotation.w = q_vc_world.w();
+  virtual_chassis.transform.rotation.x = q_vc_world.x();
+  virtual_chassis.transform.rotation.y = q_vc_world.y();
+  virtual_chassis.transform.rotation.z = q_vc_world.z();
 
   // Calculate the expected imu measurement from the head
   Vector3d head_accel;
@@ -141,15 +146,25 @@ int main(int argc, char **argv) {
   size_t statelen = state_length(num_modules);
   size_t sensorlen = sensor_length(num_modules);
 
-  //ekf.Q = 0.01*MatrixXd::Identity(statelen, statelen);
+  // Covariance for roll
+  /*
+  ekf.Q = 0.001*MatrixXd::Identity(statelen, statelen);
+  ekf.Q.block(0, 0, 3, 3) *= 1000;
+  ekf.Q.block(num_modules, num_modules, num_modules, num_modules) /= 10;
+  ekf.Q.block(10 + num_modules, 10 + num_modules, num_modules, num_modules) *= 100;
+  */
+
+  // Covariance for sidewind
   ekf.Q = 0.00001*MatrixXd::Identity(statelen, statelen);
   ekf.Q.block(0, 0, 3, 3) *= 100000;
   ekf.Q.block(7, 7, 3, 3) *= 100;
+  ekf.Q.block(10 + num_modules, 10 + num_modules, num_modules, num_modules) *= 100;
+
   ekf.R = MatrixXd::Identity(sensorlen, sensorlen);
   ekf.R.block(0, 0, num_modules, num_modules) /= 100;
-  //ekf.R.block(4*num_modules, 4*num_modules, 3*num_modules, 3*num_modules) /= 10;
   ekf.R.block(num_modules, num_modules, 3*num_modules, 3*num_modules) /= 20;
   ekf.R.block(4*num_modules, 4*num_modules, 3*num_modules, 3*num_modules) /= 2;
+
   ekf.S_t = 0.001*MatrixXd::Identity(statelen, statelen);
 
   ros::init(argc, argv, "estimator");
@@ -167,7 +182,6 @@ int main(int argc, char **argv) {
   pose.transform.rotation.y = 0;
   pose.transform.rotation.z = 0;
   
-  /*
   // Initialize group using hebiros node
   ros::ServiceClient add_group_client = n.serviceClient<AddGroupFromNamesSrv>("hebiros/add_group_from_names");
   AddGroupFromNamesSrv add_group_srv;
@@ -195,7 +209,6 @@ int main(int argc, char **argv) {
   SetFeedbackFrequencySrv set_freq_srv;
   set_freq_srv.request.feedback_frequency = feedback_freq;
   set_freq_client.call(set_freq_srv);
-  */
 
   joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 100);
   meas_pub = n.advertise<hebiros::FeedbackMsg>("/reusnake/measurement_model", 100);
@@ -203,7 +216,7 @@ int main(int argc, char **argv) {
   ros::Subscriber feedback_sub = n.subscribe("/hebiros/RUSNAKE/feedback", 100, handle_feedback);
 
   tf2_ros::TransformBroadcaster pose_br;
-  ros::Rate r(50); // 10 hz
+  ros::Rate r(50);
   while (ros::ok()) {
     pose.header.stamp = ros::Time::now();
     virtual_chassis.header.stamp = ros::Time::now();

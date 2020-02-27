@@ -66,7 +66,7 @@ class EKF
 
         VectorXd h_t; // predicted measurement, for printing mainly
 
-        Matrix4d prev_vc; // previous virtual chassis, for vc consistency
+        Matrix4d vc; // current virtual chassis
 
     private:
         size_t num_modules; //number of modules in snake

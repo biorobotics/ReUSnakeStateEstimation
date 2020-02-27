@@ -55,11 +55,10 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
  * x_t: current state, passed with same conventions as f
  * dt: time interval between x_t and x_t_1
  * num_modules: number of modules in snake 
- * prev_vc: previous virtual chassis, to make the current one consistent
+ * prev_vc: the previous virtual chassis, for correction
  * RETURN: the current virtual chassis, consistent with the previous one
  */
-Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules,
-           Matrix4d prev_vc);
+Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules, const Matrix4d& prev_vc);
 
 /*
 * df: computes Jacobian of f
@@ -78,10 +77,9 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
 * x_t: state to evaluate Jacobian
 * dt: time step
 * num_modules: number of modules in the snake
-* prev_vc: previous virtual chassis, to make the current one consistent
+* prev_vc: the previous virtual chassis, for correction
 */
-void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules,
-        Matrix4d prev_vc);
+void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules, const Matrix4d& prev_vc);
 
 /*
  * state_length: computes the length of the state vector assumed by this

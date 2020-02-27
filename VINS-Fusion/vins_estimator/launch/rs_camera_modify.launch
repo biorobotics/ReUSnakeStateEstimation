@@ -83,5 +83,6 @@
       <arg name="unite_imu_method"         value="$(arg unite_imu_method)"/>
     </include>
   </group>
+  <node pkg="realsense2_camera" type="copy_imu.py" name="copy_imu"/>
   <node pkg="dynamic_reconfigure" name="dynparam" type="dynparam" args="set /camera/stereo_module 'emitter_enabled' 0" />
 </launch>

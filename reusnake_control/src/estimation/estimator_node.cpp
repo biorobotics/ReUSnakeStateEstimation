@@ -51,7 +51,7 @@ void print_angular_velocity(VectorXd& x_t) {
 }
 
 void handle_feedback(FeedbackMsg msg) {
-  VectorXd u_t(num_modules);
+  VectorXd u_t(num_modules + 3);
 
   for (size_t i = 0; i < num_modules; i++) {
     double theta = msg.position[i];
@@ -63,6 +63,10 @@ void handle_feedback(FeedbackMsg msg) {
 
     Vector3d gamma(msg.gyro[i].x, msg.gyro[i].y, msg.gyro[i].z);
     set_gamma(z_t, gamma, i, num_modules);
+
+    if (i == 0) {
+      u_t.tail(3) = gamma;
+    }
 
     if (first) {
       u_t(i) = 0;
@@ -103,15 +107,12 @@ void handle_feedback(FeedbackMsg msg) {
 
   Quaterniond q_head = q_m1_world*q_m1_head.conjugate();
   
-  pose.header.stamp = ros::Time::now();
   pose.header.frame_id = "world";
   pose.child_frame_id = "link0";
   pose.transform.rotation.w = q_head.w();
   pose.transform.rotation.x = q_head.x();
   pose.transform.rotation.y = q_head.y();
   pose.transform.rotation.z = q_head.z();
-
-  cout << q_head.w() << " " << q_head.vec() << "\n\n";
 }
 
 int main(int argc, char **argv) {
@@ -119,12 +120,18 @@ int main(int argc, char **argv) {
 
   size_t statelen = state_length(num_modules);
   size_t sensorlen = sensor_length(num_modules);
-  ekf.Q = 0.01*MatrixXd::Identity(statelen, statelen);
-  ekf.Q.block(0, 0, 3, 3) *= 100;
+
+  ekf.Q = 0.00001*MatrixXd::Identity(statelen, statelen);
+  ekf.Q.block(0, 0, 3, 3) *= 100000;
+  ekf.Q.block(7, 7, 3, 3) *= 100;
+  ekf.Q.block(10 + num_modules, 10 + num_modules, num_modules, num_modules) *= 100;
+
   ekf.R = MatrixXd::Identity(sensorlen, sensorlen);
   ekf.R.block(0, 0, num_modules, num_modules) /= 100;
-  ekf.R.block(4*num_modules, 4*num_modules, 3*num_modules, 3*num_modules) /= 10;
-  ekf.S_t = 0.01*MatrixXd::Identity(statelen, statelen);
+  ekf.R.block(num_modules, num_modules, 3*num_modules, 3*num_modules) /= 20;
+  ekf.R.block(4*num_modules, 4*num_modules, 3*num_modules, 3*num_modules) /= 2;
+
+  ekf.S_t = 0.001*MatrixXd::Identity(statelen, statelen);
 
   ros::init(argc, argv, "estimator");
   ros::NodeHandle n;
@@ -175,8 +182,9 @@ int main(int argc, char **argv) {
   ros::Subscriber feedback_sub = n.subscribe("/hebiros/RUSNAKE/feedback", 100, handle_feedback);
 
   tf2_ros::TransformBroadcaster pose_br;
-  ros::Rate r(50); // 10 hz
+  ros::Rate r(50); 
   while (ros::ok()) {
+    pose.header.stamp = ros::Time::now();
     pose_br.sendTransform(pose);
     joint_pub.publish(joint_state);
 

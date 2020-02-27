@@ -26,7 +26,7 @@ using namespace Eigen;
  *      - theta_dot_t: joint velocities (vector with length num_modules)
  * x_t_1: previous state, passed with above convention
  * u_t: control signal (in this case a vector of length num_modules + 3
-        containing commanded joint angles and gyro measurements of module 1)
+        containing commanded joint angles and gyro measurement of module 1)
  * dt: time interval between x_t and x_t_1
  * num_modules: number of modules in snake
  */

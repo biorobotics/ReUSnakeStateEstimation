@@ -48,6 +48,7 @@ EKF::EKF(double q, double r, size_t modules) {
   I.setIdentity(sensorlen, sensorlen);
   R = r*I;
 
+  x_t = VectorXd::Zero(statelen);
   h_t = VectorXd::Zero(sensorlen);
 }
 
@@ -168,8 +169,7 @@ void EKF::correct(const VectorXd& z_t) {
   inn_cov_ldlt = inn_cov.ldlt();
   x_t = x_t + SHT*(inn_cov_ldlt.solve(sensor_diff));
 
-  MatrixXd I;
-  I.setIdentity(statelen, statelen);
+  MatrixXd I = MatrixXd::Identity(statelen, statelen);
 
   // SHT*inn_cov_ldlt.inverse() is the Kalman gain
   S_t = (I - SHT*inn_cov_ldlt.solve(H_t))*S_t;
