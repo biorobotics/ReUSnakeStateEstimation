@@ -102,7 +102,7 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, VectorXd& x_t,
 
   Vector3d a_internal = -vc_R*(next_vc_R.transpose()*next_position -
                           2*vc_R.transpose()*position + 
-                          old_vc_R*prev_position)/(dt*dt);
+                          old_vc_R.transpose()*prev_position)/(dt*dt);
 
   // Acceleration of virtual chassis in world frame
   Vector3d vc_accel;
@@ -119,7 +119,7 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, VectorXd& x_t,
   /*
   // Orientations of head wrt vc
   Matrix3d head_R = vc_R.transpose();
-  Matrix3d old_head_R = old_vc.block(0, 0, 3, 3).transpose();
+  Matrix3d old_head_R = old_vc_R.transpose();
 
   Matrix3d velocity_matrix = head_R*old_head_R.transpose()/dt;
   Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));

@@ -9,6 +9,7 @@
 #include "hebiros/AddGroupFromNamesSrv.h"
 #include "hebiros/SetFeedbackFrequencySrv.h"
 #include <sensor_msgs/JointState.h>
+#include <sensor_msgs/Imu.h>
 #include "SnakeKinematics.h"
 #include <iostream>
 
@@ -27,6 +28,11 @@ static VectorXd z_t(sensor_length(num_modules));
 static EKF ekf(1, 1, num_modules);
 static ros::Publisher joint_pub;
 static ros::Publisher meas_pub;
+
+// Publish the expected imu measurement if there were an imu on the head
+static ros::Publisher head_imu_pub; 
+static sensor_msgs::Imu head_imu;
+
 static sensor_msgs::JointState joint_state;
 static geometry_msgs::TransformStamped pose;
 static bool first = true;
@@ -113,6 +119,19 @@ void handle_feedback(FeedbackMsg msg) {
   pose.transform.rotation.x = q_head.x();
   pose.transform.rotation.y = q_head.y();
   pose.transform.rotation.z = q_head.z();
+
+  // Calculate the expected imu measurement from the head
+  Vector3d head_accel;
+  Vector3d head_gyro;
+  get_head_kinematics(head_accel, head_gyro, ekf.x_t, num_modules, dt);
+
+  head_imu.linear_acceleration.x = head_accel(0);
+  head_imu.linear_acceleration.y = head_accel(1);
+  head_imu.linear_acceleration.z = head_accel(2);
+  
+  head_imu.angular_velocity.x = head_gyro(0);
+  head_imu.angular_velocity.y = head_gyro(1);
+  head_imu.angular_velocity.z = head_gyro(2);
 }
 
 int main(int argc, char **argv) {
@@ -179,6 +198,7 @@ int main(int argc, char **argv) {
 
   joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 100);
   meas_pub = n.advertise<hebiros::FeedbackMsg>("/reusnake/measurement_model", 100);
+  head_imu_pub = n.advertise<sensor_msgs::Imu>("/reusnake/head_imu", 100);
   ros::Subscriber feedback_sub = n.subscribe("/hebiros/RUSNAKE/feedback", 100, handle_feedback);
 
   tf2_ros::TransformBroadcaster pose_br;
@@ -208,6 +228,9 @@ int main(int argc, char **argv) {
       measurement.gyro.push_back(gyro_vec_ros);
     }
     meas_pub.publish(measurement);
+
+    head_imu.header.stamp = ros::Time::now();
+    head_imu_pub.publish(head_imu);
     
     r.sleep();
     ros::spinOnce();

@@ -14,6 +14,9 @@
 
 using namespace Eigen;
 
+void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, VectorXd& x_t,
+                         size_t num_modules, double dt);
+
 /*
  * f: predicts current state given previous state and time interval
  * (process model)

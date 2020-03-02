@@ -93,7 +93,7 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, VectorXd& x_t,
 
   Vector3d a_internal = -m1_R*(next_m1_R.transpose()*next_position -
                           2*m1_R.transpose()*position + 
-                          old_m1_R*prev_position)/(dt*dt);
+                          old_m1_R.transpose()*prev_position)/(dt*dt);
 
   // Acceleration of m1 in world frame
   Vector3d m1_accel;
@@ -109,7 +109,7 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, VectorXd& x_t,
 
   // Orientations of head wrt m1
   Matrix3d head_R = m1_R.transpose();
-  Matrix3d old_head_R = old_m1_R.block(0, 0, 3, 3).transpose();
+  Matrix3d old_head_R = old_m1_R.transpose();
 
   Matrix3d velocity_matrix = head_R*old_head_R.transpose()/dt;
   Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));
@@ -217,8 +217,7 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
     /* Accelerometer calculations */
 
     // Rotation matrix of module 1 with respect to current module frame
-    Matrix3d R_inv;
-    R_inv = transforms[i + 1].block(0, 0, 3, 3).transpose();
+    Matrix3d R_inv = transforms[i + 1].block(0, 0, 3, 3).transpose();
 
     // Perceived acceleration due to gravity in module frame
     Vector3d a_grav = R_inv*V_t*gvec;
@@ -230,7 +229,7 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
     Vector3d next_position = next_transforms[i + 1].block(0, 3, 3, 1);
 
     Vector3d a_internal = R_inv*(next_position - 2*position + prev_position)/(dt*dt);
-  
+
     // Acceleration of module 1 in world frame
     Vector3d m1_accel;
     get_a(m1_accel, x_t);
@@ -251,7 +250,7 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules) {
     Matrix3d velocity_matrix = R*prev_R.transpose()/dt;
     Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));
     
-    // Compute angular velocity of head in module frame
+    // Compute angular velocity of m1 in module frame
     Vector3d w_t;
     get_w(w_t, x_t);
     Vector3d w_t_module = R_inv*w_t;
