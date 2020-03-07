@@ -13,7 +13,7 @@
  */
 
 // Damping term for acceleration
-static const double tau = 21;
+static const double tau = 100;
 
 // How much weight we give the commanded joint velocities over the previous 
 // joint velocities in the update step
@@ -131,11 +131,13 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
   set_a(x_t, exp(-tau*dt)*a_t_1);
   
   // Predict orientation
-  Vector3d w_t = u_t.tail(3);
-  set_w(x_t, w_t);
+  set_w(x_t, u_t.tail(3));
+
+  Vector3d w_t_1;
+  get_w(w_t_1, x_t);
   
   Matrix4d stm;
-  quaternion_stm(stm, w_t, dt);
+  quaternion_stm(stm, w_t_1, dt);
 
   Vector4d q_t_1;
   get_q(q_t_1, x_t_1);

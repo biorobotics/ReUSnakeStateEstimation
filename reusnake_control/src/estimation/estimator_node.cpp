@@ -20,7 +20,7 @@
 using namespace Eigen;
 using namespace hebiros;
 
-static const size_t num_modules = 10;
+static const size_t num_modules = 12;
 static const int feedback_freq = 100;
 static const double dt = 1.0/feedback_freq;
 
@@ -61,6 +61,7 @@ void handle_feedback(FeedbackMsg msg) {
 
   for (size_t i = 0; i < num_modules; i++) {
     double theta = msg.position[i];
+    if (i == 1) theta += 0.26;
 
     set_phi(z_t, i, theta);
     
@@ -168,20 +169,23 @@ int main(int argc, char **argv) {
   pose.transform.rotation.y = 0;
   pose.transform.rotation.z = 0;
   
+  /*
   // Initialize group using hebiros node
   ros::ServiceClient add_group_client = n.serviceClient<AddGroupFromNamesSrv>("hebiros/add_group_from_names");
   AddGroupFromNamesSrv add_group_srv;
   add_group_srv.request.group_name = "RUSNAKE";
-  add_group_srv.request.names = {"RUSnake Module #13",
-        "RUSnake Module #12",
-        "RUSnake Module #11",
-        "RUSnake Module #10",
-        "RUSnake Module #9",
-        "RUSnake Module #8",
-        "RUSnake Module #6",
-        "RUSnake Module #3",
-        "RUSnake Module #2",
-        "RUSnake Module #1"
+  add_group_srv.request.names = {"RUSnake Module #114",
+        "RUSnake Module #113",
+        "RUSnake Module #112",
+        "RUSnake Module #111",
+        "RUSnake Module #110",
+        "RUSnake Module #109",
+        "RUSnake Module #101",
+        "RUSnake Module #107",
+        "RUSnake Module #106",
+        "RUSnake Module #105",
+        "RUSnake Module #104",
+        "RUSnake Module #103"
 };
   add_group_srv.request.families = {"*"};
   // Block until group is created
@@ -195,6 +199,7 @@ int main(int argc, char **argv) {
   SetFeedbackFrequencySrv set_freq_srv;
   set_freq_srv.request.feedback_frequency = feedback_freq;
   set_freq_client.call(set_freq_srv);
+  */
 
   joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 100);
   meas_pub = n.advertise<hebiros::FeedbackMsg>("/reusnake/measurement_model", 100);
@@ -206,6 +211,7 @@ int main(int argc, char **argv) {
   while (ros::ok()) {
     pose.header.stamp = ros::Time::now();
     pose_br.sendTransform(pose);
+    joint_state.header.stamp = pose.header.stamp;
     joint_pub.publish(joint_state);
 
     // Publish predicted measurement

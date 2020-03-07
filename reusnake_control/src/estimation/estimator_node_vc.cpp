@@ -63,6 +63,7 @@ void handle_feedback(FeedbackMsg msg) {
 
   for (size_t i = 0; i < num_modules; i++) {
     double theta = msg.position[i];
+    if (i == 1) theta += 0.26;
 
     set_phi(z_t, i, theta);
     
@@ -87,7 +88,7 @@ void handle_feedback(FeedbackMsg msg) {
   
   ekf.predict(u_t, dt);
   ekf.correct(z_t);  
- 
+
   for (size_t i = 0; i < num_modules; i++) { 
     double theta = get_theta(ekf.x_t, i);
     double theta_dot = get_theta_dot(ekf.x_t, i, num_modules);
@@ -125,7 +126,7 @@ void handle_feedback(FeedbackMsg msg) {
   virtual_chassis.transform.rotation.x = q_vc_world.x();
   virtual_chassis.transform.rotation.y = q_vc_world.y();
   virtual_chassis.transform.rotation.z = q_vc_world.z();
-
+  
   // Calculate the expected imu measurement from the head
   Vector3d head_accel;
   Vector3d head_gyro;
@@ -186,16 +187,18 @@ int main(int argc, char **argv) {
   ros::ServiceClient add_group_client = n.serviceClient<AddGroupFromNamesSrv>("hebiros/add_group_from_names");
   AddGroupFromNamesSrv add_group_srv;
   add_group_srv.request.group_name = "RUSNAKE";
-  add_group_srv.request.names = {"RUSnake Module #13",
-        "RUSnake Module #12",
-        "RUSnake Module #11",
-        "RUSnake Module #10",
-        "RUSnake Module #9",
-        "RUSnake Module #8",
-        "RUSnake Module #6",
-        "RUSnake Module #3",
-        "RUSnake Module #2",
-        "RUSnake Module #1"
+  add_group_srv.request.names = {"RUSnake Module #114",
+        "RUSnake Module #113",
+        "RUSnake Module #112",
+        "RUSnake Module #111",
+        "RUSnake Module #110",
+        "RUSnake Module #109",
+        "RUSnake Module #101",
+        "RUSnake Module #107",
+        "RUSnake Module #106",
+        "RUSnake Module #105",
+        "RUSnake Module #104",
+        "RUSnake Module #103"
 };
   add_group_srv.request.families = {"*"};
   // Block until group is created
@@ -219,7 +222,8 @@ int main(int argc, char **argv) {
   ros::Rate r(50);
   while (ros::ok()) {
     pose.header.stamp = ros::Time::now();
-    virtual_chassis.header.stamp = ros::Time::now();
+    virtual_chassis.header.stamp = pose.header.stamp;
+    joint_state.header.stamp = pose.header.stamp;
     pose_br.sendTransform(pose);
     pose_br.sendTransform(virtual_chassis);
     joint_pub.publish(joint_state);

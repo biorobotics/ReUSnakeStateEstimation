@@ -89,6 +89,7 @@ void EKF::correct(const VectorXd& z_t) {
   // (innovation residual)
   VectorXd sensor_diff = z_t - h_t;
   
+  MatrixXd old_R = R.block(0, 0, sensorlen, sensorlen);
   for (size_t i = 0; i < sensorlen; i++) {
     if (isnan(z_t(i))) {
       R(i, i) = 1000000;
@@ -154,11 +155,10 @@ void EKF::correct(const VectorXd& z_t) {
   
   // Mark outliers based on Mahalanobis distance of their Mahalanobis distance
   // from the mean Mahalanobis distance of the inliers
-  MatrixXd old_R = R.block(0, 0, sensorlen, sensorlen);
   for (size_t i = 0; i < sensornum; i++) {
     size_t s = indices[i];
     double w = pow(ds[s] - mean_d, 2)/var_d;
-    if (w > 90 || s == 6) {//15
+    if (w > 90) {//15
       size_t j = num_modules + 3*s;
       R.block(j, j, 3, 3) = 1000000*Matrix3d::Identity();
       sensor_diff(j) = 0;

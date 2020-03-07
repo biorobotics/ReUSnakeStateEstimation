@@ -14,14 +14,14 @@
  */
 
 // Damping term for acceleration
-static const double tau = 21;
+static const double tau = 100;
 
 // How much weight we give the commanded joint velocities over the previous 
 // joint velocities in the update step
 static const double lambda = 0.25;
 
 // Gravitational field
-static const double g = 9.8;
+static const double g = 9.7;
 
 // Perturbation used for numerical derivatives
 static const double epsilon = 0.00001;
@@ -266,8 +266,8 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules, co
     
     /* Gyro calculations */
 
-    /*
     // Current and previous rotation matrix of module frame with respect to vc frame
+    /*
     Matrix3d R = transforms[i + 1].block(0, 0, 3, 3);
     Matrix3d prev_R = prev_transforms[i + 1].block(0, 0, 3, 3);
 
