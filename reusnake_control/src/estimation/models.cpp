@@ -13,7 +13,7 @@
  */
 
 // Damping term for acceleration
-static const double tau = 100;
+static const double tau = 21;
 
 // How much weight we give the commanded joint velocities over the previous 
 // joint velocities in the update step
@@ -113,14 +113,14 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, VectorXd& x_t,
 
   Matrix3d velocity_matrix = head_R*old_head_R.transpose()/dt;
   Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));
+  w_internal.setZero();
 
   // Compute angular velocity of m1 in module frame
   Vector3d w_t;
   get_w(w_t, x_t);
-  Vector3d w_t_head = m1_R*w_t;
 
   // Populate gyro values
-  ang_vel = w_internal + w_t_head;
+  ang_vel = w_internal + m1_R*w_t;
 } 
 
 void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
@@ -134,7 +134,7 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
   set_w(x_t, u_t.tail(3));
 
   Vector3d w_t_1;
-  get_w(w_t_1, x_t);
+  get_w(w_t_1, x_t_1);
   
   Matrix4d stm;
   quaternion_stm(stm, w_t_1, dt);
