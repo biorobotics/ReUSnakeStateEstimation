@@ -3,8 +3,8 @@
   * @file    ekf.cpp
   * @author  Anoop Bhat
   * @version V1.0.0
-  * @date    04-Nov-2019
-  * @brief   This file is an implementation of an EKF for a snake robot
+  * @date    16-Mar-2020
+  * @brief   This file contains Kalman filter implementations for a snake robot
   ***************************************************************************************
   */
 
@@ -12,7 +12,7 @@
 #include <cmath>
 #include <vector>
 #include <Eigen/Dense>
-#include "ekf.hpp"
+#include "kf.hpp"
 #include "models.hpp"
 #include <numeric> // std::iota
 #include <algorithm> // std::sort, std::stable_sort
@@ -20,6 +20,7 @@
 using namespace Eigen;
 using namespace std;
 
+// Sort function, but return a list of indices corresponding to sorted array
 vector<size_t> sort_indices(const vector<double> &v) {
   // initialize original index locations
   vector<size_t> idx(v.size());
@@ -35,45 +36,9 @@ vector<size_t> sort_indices(const vector<double> &v) {
   return idx;
 }
 
-void EKF::predict(const VectorXd& u_t, double _dt) {
-  dt = _dt;
-
-  // Jacobian of process model
-  MatrixXd F_t(statelen, statelen);
-
-  // Previous state
-  VectorXd x_t_1(x_t);
-  
-  f(x_t, x_t_1, u_t, dt, num_modules, body_frame_module);
-  df(F_t, x_t_1, u_t, dt, num_modules, body_frame_module);
-
-  S_t = F_t*S_t*F_t.transpose() + Q;
-}
-
-void EKF::correct(const VectorXd& z_t) {
-  MatrixXd H_t(sensorlen, statelen); // Jacobian for sensor model
-
-  dh(H_t, x_t, dt, num_modules, body_frame_module, vc);
-  vc = h(h_t, x_t, dt, num_modules, body_frame_module, vc);
-
-  // Compute difference between predicted measurement and actual
-  VectorXd sensor_diff = z_t - h_t;
-  
-  MatrixXd old_R = R.block(0, 0, sensorlen, sensorlen);
-  for (size_t i = 0; i < sensorlen; i++) {
-    if (isnan(z_t(i))) {
-      R(i, i) = 1000000;
-      sensor_diff(i) = -h_t(i); // i.e. treat z_t(i) as 0
-    }
-  }
-
-  // Temporary matrix that we'll use a few times in the future
-  MatrixXd SHT = S_t*H_t.transpose();
-  // Innovation covariance, for computing Kalman gain
-  MatrixXd inn_cov = H_t*SHT + R;
-
-  // Outlier detection and removal (we don't perform on encoders, so remove
-  // them temporarily from residual)
+// Detect outlier IMU measurements and set their entries in R to a very large value
+void detect_outliers(MatrixXd& R, const MatrixXd& inn_cov, const VectorXd sensor_diff,
+                     size_t sensorlen, size_t num_modules) {
   size_t sensorlen_short = sensorlen - num_modules;
   size_t sensornum = 2*num_modules; // one gyro and one accelerometer per module
   VectorXd sensor_diff_short = sensor_diff.tail(sensorlen_short);
@@ -133,11 +98,68 @@ void EKF::correct(const VectorXd& z_t) {
       R.block(j, j, 3, 3) = 1000000*Matrix3d::Identity();
     }
   }
+}
+
+void KF::initialize(size_t modules, short _body_frame_module, const VectorXd& z_t) {
+  num_modules = modules;
+  body_frame_module = _body_frame_module;
+
+  statelen = state_length(num_modules);
+  sensorlen = sensor_length(num_modules);
+
+  x_t = VectorXd::Zero(statelen);
+  h_t = VectorXd::Zero(sensorlen);
+
+  vc = init_state(x_t, z_t, num_modules, body_frame_module);
+}
+
+void EKF::predict(const VectorXd& u_t, double _dt) {
+  dt = _dt;
+
+  // Jacobian of process model
+  MatrixXd F_t(statelen, statelen);
+
+  // Previous state
+  VectorXd x_t_1(x_t);
+  
+  f(x_t, x_t_1, u_t, dt, num_modules, body_frame_module);
+  df(F_t, x_t_1, u_t, dt, num_modules, body_frame_module);
+
+  S_t = F_t*S_t*F_t.transpose() + Q;
+}
+
+void EKF::correct(const VectorXd& z_t) {
+  MatrixXd H_t(sensorlen, statelen); // Jacobian for sensor model
+
+  /*
+  dh(H_t, x_t, dt, num_modules, body_frame_module, vc);
+  vc = h(h_t, x_t, dt, num_modules, body_frame_module, vc);
+  */
+  dh(H_t, x_t, 0.0001, num_modules, body_frame_module, vc);
+  vc = h(h_t, x_t, 0.0001, num_modules, body_frame_module, vc);
+
+  // Compute difference between predicted measurement and actual
+  VectorXd sensor_diff = z_t - h_t;
+  
+  MatrixXd old_R = R.block(0, 0, sensorlen, sensorlen);
+  for (size_t i = 0; i < sensorlen; i++) {
+    if (isnan(z_t(i))) {
+      R(i, i) = 1000000;
+      sensor_diff(i) = -h_t(i); // i.e. treat z_t(i) as 0
+    }
+  }
+
+  // Temporary matrix that we'll use a few times in the future
+  MatrixXd SHT = S_t*H_t.transpose();
+  // Innovation covariance, for computing Kalman gain
+  MatrixXd inn_cov = H_t*SHT + R;
+
+  detect_outliers(R, inn_cov, sensor_diff, sensorlen, num_modules);
 
   // Compute new innovation covariance
   inn_cov = H_t*SHT + R;
 
-  inn_cov_ldlt = inn_cov.ldlt();
+  LDLT<MatrixXd> inn_cov_ldlt = inn_cov.ldlt();
   x_t = x_t + SHT*(inn_cov_ldlt.solve(sensor_diff));
 
   MatrixXd I = MatrixXd::Identity(statelen, statelen);
@@ -156,15 +178,68 @@ void EKF::correct(const VectorXd& z_t) {
   R = old_R;
 }
 
-void EKF::initialize(size_t modules, short _body_frame_module, const VectorXd& z_t) {
-  num_modules = modules;
-  body_frame_module = _body_frame_module;
+void UKF::predict(const VectorXd& u_t, double _dt) {
+  dt = _dt;
 
-  statelen = state_length(num_modules);
-  sensorlen = sensor_length(num_modules);
+  // Jacobian of process model
+  MatrixXd F_t(statelen, statelen);
 
-  x_t = VectorXd::Zero(statelen);
-  h_t = VectorXd::Zero(sensorlen);
+  // Previous state
+  VectorXd x_t_1(x_t);
+  
+  f(x_t, x_t_1, u_t, dt, num_modules, body_frame_module);
+  df(F_t, x_t_1, u_t, dt, num_modules, body_frame_module);
 
-  vc = init_state(x_t, z_t, num_modules, body_frame_module);
+  S_t = F_t*S_t*F_t.transpose() + Q;
+}
+
+void UKF::correct(const VectorXd& z_t) {
+  MatrixXd H_t(sensorlen, statelen); // Jacobian for sensor model
+
+  /*
+  vc = h(h_t, x_t, dt, num_modules, body_frame_module, vc);
+  dh(H_t, x_t, dt, num_modules, body_frame_module, vc);
+  */
+
+  vc = h(h_t, x_t, 0.0001, num_modules, body_frame_module, vc);
+  dh(H_t, x_t, 0.0001, num_modules, body_frame_module, vc);
+
+  // Compute difference between predicted measurement and actual
+  VectorXd sensor_diff = z_t - h_t;
+  
+  MatrixXd old_R = R.block(0, 0, sensorlen, sensorlen);
+  for (size_t i = 0; i < sensorlen; i++) {
+    if (isnan(z_t(i))) {
+      R(i, i) = 1000000;
+      sensor_diff(i) = -h_t(i); // i.e. treat z_t(i) as 0
+    }
+  }
+
+  // Temporary matrix that we'll use a few times in the future
+  MatrixXd SHT = S_t*H_t.transpose();
+  // Innovation covariance, for computing Kalman gain
+  MatrixXd inn_cov = H_t*SHT + R;
+
+  detect_outliers(R, inn_cov, sensor_diff, sensorlen, num_modules);
+
+  // Compute new innovation covariance
+  inn_cov = H_t*SHT + R;
+
+  LDLT<MatrixXd> inn_cov_ldlt = inn_cov.ldlt();
+  x_t = x_t + SHT*(inn_cov_ldlt.solve(sensor_diff));
+
+  MatrixXd I = MatrixXd::Identity(statelen, statelen);
+
+  // SHT*inn_cov_ldlt.inverse() is the Kalman gain
+  S_t = (I - SHT*inn_cov_ldlt.solve(H_t))*S_t;
+
+  // Renormalize quaternion
+  Vector4d q_t;
+
+  get_q(q_t, x_t);
+
+  q_t = q_t/sqrt(q_t.squaredNorm());
+  set_q(x_t, q_t);
+
+  R = old_R;
 }
