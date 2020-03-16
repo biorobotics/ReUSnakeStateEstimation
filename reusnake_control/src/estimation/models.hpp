@@ -14,8 +14,20 @@
 
 using namespace Eigen;
 
+/*
+ * get_head_kinematics: gets the expected IMU measurements for an IMU
+ * at the snake's head
+ * ARGUMENTS
+ * accel: expected accelerometer measurement
+ * ang_vel: expected gyro measurement
+ * x_t: current state
+ * num_modules: number of modules in snake
+ * dt: time interval used for differentiation
+ * body_frame_module: module to use as body frame. If -1, use virtual chassis
+ */
 void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, VectorXd& x_t,
-                         size_t num_modules, double dt);
+                         size_t num_modules, double dt,
+                         short body_frame_module);
 
 /*
  * f: predicts current state given previous state and time interval
@@ -29,12 +41,15 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, VectorXd& x_t,
  *      - theta_dot_t: joint velocities (vector with length num_modules)
  * x_t_1: previous state, passed with above convention
  * u_t: control signal (in this case a vector of length num_modules + 3
-        containing commanded joint angles and gyro measurement of module 1)
+        containing commanded joint angles and gyro measurement at body frame,
+        or in the case of virtual chassis, the same but without the gyro
+        measurement)
  * dt: time interval between x_t and x_t_1
  * num_modules: number of modules in snake
+ * body_frame_module: module to use as body frame. If -1, use virtual chassis
  */
 void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
-       double dt, size_t num_modules);
+       double dt, size_t num_modules, short body_frame_module);
 
 /*
  * h: predicts sensor measurements given current state (measurement model)
@@ -46,8 +61,13 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
  * x_t: current state, passed with same conventions as f
  * dt: time interval between x_t and x_t_1
  * num_modules: number of modules in snake 
+ * body_frame_module: module to use as body frame. If -1, use virtual chassis
+ * prev_vc: the previous virtual chassis, for correction
+ * RETURN: if body_frame_module is -1, return the current virtual chassis,
+ * consistent with the previous one. Otherwise, undefined behavior
  */
-void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules);
+Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules,
+       short body_frame_module, const Matrix4d& prev_vc);
 
 /*
 * df: computes Jacobian of f
@@ -56,9 +76,10 @@ void h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules);
 * u_t: control signal
 * dt: time step
 * num_modules: number of modules in the snake
+* body_frame_module: module to use as body frame. If -1, use virtual chassis
 */
 void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
-        size_t num_modules);
+        size_t num_modules, short body_frame_module);
 
 /*
 * dh: computes Jacobian of h
@@ -66,8 +87,11 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
 * x_t: state to evaluate Jacobian
 * dt: time step
 * num_modules: number of modules in the snake
+* body_frame_module: module to use as body frame. If -1, use virtual chassis
+* prev_vc: the previous virtual chassis, for correction
 */
-void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules);
+void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules,
+        short body_frame_module, const Matrix4d& prev_vc = Matrix4d::Identity());
 
 /*
  * state_length: computes the length of the state vector assumed by this
@@ -91,8 +115,16 @@ size_t sensor_length(size_t num_modules);
 
 /*
  * init_state: initializes the state vector using sensor readings
+ * ARGUMENTS
+ * x_t: state vector to initialize
+ * z_t: measurements for use in initialization
+ * num_modules: number of modules in snake
+ * body_frame_module: module to use as body frame. If -1, use virtual chassis
+ * RETURN
+ * virtual chassis if body_frame_module == -1, undefined otherwise
  */
-void init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules);
+Matrix4d init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules,
+                    short body_frame_module);
 
 // Helper functions to manipulate information from state vector
 

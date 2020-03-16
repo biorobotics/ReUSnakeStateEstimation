@@ -20,24 +20,6 @@ using namespace std;
 class EKF
 {
     public:
-        /* EKF: constructor for extended Kalman filter with diagonal covariance
-                matrices
-         * ARGUMENTS
-         * q: process noise/covariance
-         * r: sensor noise/covariance
-         * modules: number of modules in snake
-         */
-        EKF(double q, double r, size_t modules);
-  
-        /* EKF: constructor for extended Kalman filter
-         * ARGUMENTS
-         * _Q: process noise/covariance
-         * _R: sensor noise/covariance
-         * _S: initial prediction covariance
-         * modules: number of modules in snake
-         */
-        EKF(MatrixXd& _Q, MatrixXd& _R, MatrixXd& _S, size_t modules);
-        
         /* predict: runs predict step
          * ARGUMENTS
          * u_t: control signal
@@ -54,9 +36,11 @@ class EKF
         
         /* initialize: sets initial value for state using sensor values
          * ARGUMENTS
+         * modules: number of modules in snake
+         * _body_frame_module: module number of body frame, or -1 for virtual chassis
          * z_t: current measurement
          */
-        void initialize(const VectorXd& z_t);
+        void initialize(size_t modules, short _body_frame_module, const VectorXd& z_t);
 
         MatrixXd Q; // processs covariance
 		    MatrixXd R; // measurement covariance
@@ -66,8 +50,11 @@ class EKF
 
         VectorXd h_t; // predicted measurement, for printing mainly
 
+        Matrix4d vc; // current virtual chassis
+
     private:
         size_t num_modules; //number of modules in snake
+        short body_frame_module; // module number of body frame, or -1 for virtual chassis
       
         size_t statelen; //length of state vector
         size_t sensorlen; //length of sensor vector
