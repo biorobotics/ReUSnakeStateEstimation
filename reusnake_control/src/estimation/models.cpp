@@ -300,6 +300,10 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules,
 
     Matrix3d velocity_matrix = R*prev_R.transpose()/dt;
     Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));
+
+    if (body_frame_module < 0) {
+      w_internal.setZero();
+    }
     
     // Compute angular velocity of body frame in module frame
     Vector3d w_t;
@@ -337,11 +341,11 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
 
   // Quaternion Jacobian with respect to previous quaternion
   // is simply the state transition matrix
-  Vector3d w_t;
-  get_w(w_t, x_t_1);
+  Vector3d w_t_1;
+  get_w(w_t_1, x_t_1);
 
   Matrix4d stm;
-  quaternion_stm(stm, w_t, dt);
+  quaternion_stm(stm, w_t_1, dt);
   F_t.block(3, 3, 4, 4) = stm;
 
   // Account for virtual chassis constant velocity model
@@ -362,8 +366,8 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
   get_q(q_t_1, x_t_1);
   for (size_t i = 0; i < 3; i++) {
     // Perturb component of angular velocity
-    Vector3d w_t_plus(w_t);
-    Vector3d w_t_minus(w_t);
+    Vector3d w_t_plus(w_t_1);
+    Vector3d w_t_minus(w_t_1);
     w_t_plus(i) += epsilon;
     w_t_minus(i) -= epsilon;
 
