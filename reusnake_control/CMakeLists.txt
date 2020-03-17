@@ -30,12 +30,14 @@ find_package(catkin REQUIRED COMPONENTS
   hebiros
   tf2_kdl
   tf2_ros
+  cv_bridge
+  OpenCV
 )
 
 catkin_package(
 #  INCLUDE_DIRS include
 #  LIBRARIES titan6_cpp
-  CATKIN_DEPENDS roscpp rospy roslib std_msgs geometry_msgs hebi_cpp_api 
+  CATKIN_DEPENDS roscpp rospy roslib std_msgs geometry_msgs hebi_cpp_api cv_bridge
 #  DEPENDS system_lib
 )
 
@@ -62,15 +64,15 @@ add_library(hebi_robot_core OBJECT
 )
 
 add_library(estimation OBJECT
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/ekf.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/kf.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/models.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/SnakeKinematics.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/VirtualChassisKinematics.cpp
 )
 
-add_library(estimation_vc OBJECT
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/models_vc.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/ekf_vc.cpp
-  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/VirtualChassisKinematics.cpp
+add_library(estimation_acc OBJECT
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/models_acc.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/ekf_acc.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/src/estimation/SnakeKinematics.cpp
 )
 
@@ -90,12 +92,16 @@ target_link_libraries( control
                           )
 		  add_executable(estimator_node src/estimation/estimator_node.cpp $<TARGET_OBJECTS:estimation>)
 target_link_libraries(estimator_node ${catkin_LIBRARIES})
-		  add_executable(estimator_node_vc src/estimation/estimator_node_vc.cpp $<TARGET_OBJECTS:estimation_vc>)
-target_link_libraries(estimator_node_vc ${catkin_LIBRARIES})
+		  add_executable(estimator_node_acc src/estimation/estimator_node_acc.cpp $<TARGET_OBJECTS:estimation_acc>)
+target_link_libraries(estimator_node_acc ${catkin_LIBRARIES})
 		  add_executable(complementary_node src/estimation/complementary_node.cpp)
 target_link_libraries(complementary_node ${catkin_LIBRARIES})
 		  add_executable(comparison_node src/estimation/comparison_node.cpp)
 target_link_libraries(comparison_node ${catkin_LIBRARIES})
+		  add_executable(imu_compare src/estimation/imu_compare.cpp)
+target_link_libraries(imu_compare ${catkin_LIBRARIES})
+		  add_executable(imu_capture src/estimation/imu_capture.cpp)
+target_link_libraries(imu_capture ${catkin_LIBRARIES})
 
 add_executable(dummy_snake src/estimation/dummy_snake.cpp)
 target_link_libraries(dummy_snake ${catkin_LIBRARIES})
