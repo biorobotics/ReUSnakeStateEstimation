@@ -25,9 +25,9 @@ using namespace Eigen;
  * dt: time interval used for differentiation
  * body_frame_module: module to use as body frame. If -1, use virtual chassis
  */
-void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, VectorXd& x_t,
+void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, const VectorXd& x_t,
                          size_t num_modules, double dt,
-                         short body_frame_module);
+                         short body_frame_module, const Matrix4d& prev_vc);
 
 /*
  * f: predicts current state given previous state and time interval

@@ -20,6 +20,8 @@
 using namespace Eigen;
 using namespace std;
 
+static const double outlier_threshold = 15;
+
 // Sort function, but return a list of indices corresponding to sorted array
 vector<size_t> sort_indices(const vector<double> &v) {
   // initialize original index locations
@@ -93,7 +95,7 @@ void detect_outliers(MatrixXd& R, const MatrixXd& inn_cov, const VectorXd sensor
   for (size_t i = 0; i < sensornum; i++) {
     size_t s = indices[i];
     double w = pow(ds[s] - mean_d, 2)/var_d;
-    if (w > 15) {
+    if (w > outlier_threshold) {
       size_t j = num_modules + 3*s;
       R.block(j, j, 3, 3) = 1000000*Matrix3d::Identity();
     }
@@ -117,7 +119,7 @@ void EKF::predict(const VectorXd& u_t, double _dt) {
   dt = _dt;
 
   // Jacobian of process model
-  MatrixXd F_t(statelen, statelen);
+  MatrixXd F_t(statelen - 1, statelen - 1);
 
   // Previous state
   VectorXd x_t_1(x_t);
@@ -129,19 +131,15 @@ void EKF::predict(const VectorXd& u_t, double _dt) {
 }
 
 void EKF::correct(const VectorXd& z_t) {
-  MatrixXd H_t(sensorlen, statelen); // Jacobian for sensor model
+  MatrixXd H_t(sensorlen, statelen - 1); // Jacobian for sensor model
 
-  /*
   dh(H_t, x_t, dt, num_modules, body_frame_module, vc);
   vc = h(h_t, x_t, dt, num_modules, body_frame_module, vc);
-  */
-  dh(H_t, x_t, 0.0001, num_modules, body_frame_module, vc);
-  vc = h(h_t, x_t, 0.0001, num_modules, body_frame_module, vc);
 
   // Compute difference between predicted measurement and actual
   VectorXd sensor_diff = z_t - h_t;
   
-  MatrixXd old_R = R.block(0, 0, sensorlen, sensorlen);
+  MatrixXd old_R(R);
   for (size_t i = 0; i < sensorlen; i++) {
     if (isnan(z_t(i))) {
       R(i, i) = 1000000;
@@ -160,20 +158,39 @@ void EKF::correct(const VectorXd& z_t) {
   inn_cov = H_t*SHT + R;
 
   LDLT<MatrixXd> inn_cov_ldlt = inn_cov.ldlt();
-  x_t = x_t + SHT*(inn_cov_ldlt.solve(sensor_diff));
 
-  MatrixXd I = MatrixXd::Identity(statelen, statelen);
+  VectorXd x_t_ea = VectorXd::Zero(statelen - 1); // state, but with error angle
+  x_t_ea.head(3) = x_t.head(3);
+  x_t_ea.tail(statelen - 7) = x_t.tail(statelen - 7);
+
+  x_t_ea = x_t_ea + SHT*(inn_cov_ldlt.solve(sensor_diff));
+
+  // Fill in the non-error state
+  x_t.head(3) = x_t_ea.head(3);
+  x_t.tail(statelen - 7) = x_t_ea.tail(statelen - 7);
+
+  // Update quaternion component of state using error state
+  Quaterniond error_q;
+  error_q.vec() = 0.5*x_t_ea.segment(3, 3);
+  error_q.w() = sqrt(1 - error_q.vec().squaredNorm());
+
+  // Current quaternion
+  Vector4d qvec;
+  get_q(qvec, x_t);
+  Quaterniond q_t(qvec(0), qvec(1), qvec(2), qvec(3));
+
+  // Update
+  q_t = q_t*error_q;
+  
+  qvec(0) = q_t.w();
+  qvec.tail(3) = q_t.vec();
+
+  set_q(x_t, qvec);
+
+  MatrixXd I = MatrixXd::Identity(statelen - 1, statelen - 1);
 
   // SHT*inn_cov_ldlt.inverse() is the Kalman gain
   S_t = (I - SHT*inn_cov_ldlt.solve(H_t))*S_t;
-
-  // Renormalize quaternion
-  Vector4d q_t;
-
-  get_q(q_t, x_t);
-
-  q_t = q_t/sqrt(q_t.squaredNorm());
-  set_q(x_t, q_t);
 
   R = old_R;
 }

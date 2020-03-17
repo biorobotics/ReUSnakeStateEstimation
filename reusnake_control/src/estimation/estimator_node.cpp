@@ -148,7 +148,7 @@ void handle_feedback(FeedbackMsg msg) {
   Vector3d head_accel;
   Vector3d head_gyro;
   get_head_kinematics(head_accel, head_gyro, ekf.x_t, num_modules, dt,
-                      body_frame_module);
+                      body_frame_module, ekf.vc);
 
   head_imu.linear_acceleration.x = head_accel(0);
   head_imu.linear_acceleration.y = head_accel(1);
@@ -192,21 +192,23 @@ int main(int argc, char **argv) {
   body_frame_module = (short)body_frame_module_int;
   n.getParam("gait", gait);
 
-  ekf.Q = 0.00001*MatrixXd::Identity(statelen, statelen);
+  ekf.Q = 0.00001*MatrixXd::Identity(statelen - 1, statelen - 1);
   ekf.Q.block(0, 0, 3, 3) *= 100000;
-  ekf.Q.block(7, 7, 3, 3) *= 100;
-  ekf.Q.block(10 + num_modules, 10 + num_modules, num_modules, num_modules) *= 100;
+  ekf.Q.block(6, 6, 3, 3) *= 100;
+  ekf.Q.block(9 + num_modules, 9 + num_modules, num_modules, num_modules) *= 100;
 
   ekf.R = MatrixXd::Identity(sensorlen, sensorlen);
   ekf.R.block(0, 0, num_modules, num_modules) /= 100;
   ekf.R.block(num_modules, num_modules, 3*num_modules, 3*num_modules) /= 20;
   ekf.R.block(4*num_modules, 4*num_modules, 3*num_modules, 3*num_modules) /= 2;
 
-  ekf.S_t = 0.001*MatrixXd::Identity(statelen, statelen);
+  ekf.S_t = 0.001*MatrixXd::Identity(statelen - 1, statelen - 1);
 
   // Adjust covariances for virtual chassis estimator
   if (body_frame_module < 0) {
-    ekf.Q.block(num_modules, num_modules, num_modules, num_modules) /= 100;
+    ekf.Q.block(3, 3, 3, 3) *= 100;
+    ekf.Q.block(6, 6, 3, 3) *= 100;
+    ekf.Q.block(9, 9, num_modules, num_modules) /= 100;
     ekf.R.block(0, 0, num_modules, num_modules) /= 100;
   }
 
