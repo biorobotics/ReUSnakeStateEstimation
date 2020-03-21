@@ -26,6 +26,9 @@ static const double g = 9.8;
 // Perturbation used for numerical derivatives
 static const double epsilon = 0.000001;
 
+static const double module_rad = 0.0254; // TODO: change
+static const double zthresh = 0.0075; // for motion model
+
 // Get state transition matrix for quaternion
 void quaternion_stm(Matrix4d& stm, Vector3d& w_t_1, double dt) {
   Matrix4d omega; // skew-symmetric matrix used in orientation update
@@ -152,6 +155,95 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, const VectorXd& x_t
   // Populate gyro values
   ang_vel = w_internal + body_R*w_t;
 } 
+
+Vector3d get_body_displacement(const VectorXd& x_t, const VectorXd& x_t_1,
+                               size_t num_modules, const Matrix4d& prev_vc) {
+  vector<double> angles(num_modules);
+  vector<double> prev_angles(num_modules);
+
+  for (size_t i = 0; i < num_modules; i++) {
+    angles[i] = get_theta(x_t, i);
+    prev_angles[i] = get_theta(x_t_1, i);
+  }
+
+  // TODO: these calculations happen so often. memoize them in a stateinfo struct
+  transformArray transforms = makeUnifiedSnake(angles);
+  transformArray prev_transforms = makeUnifiedSnake(prev_angles);
+
+  // Compute virtual chassis
+  Matrix4d body = getSnakeVirtualChassis(transforms);
+  Matrix4d prev_body = getSnakeVirtualChassis(prev_transforms);
+
+  makeVirtualChassisConsistent(prev_vc, body);
+  makeVirtualChassisConsistent(body, prev_body);
+
+  leftTransformSnake(transforms, body.inverse());
+  leftTransformSnake(prev_transforms, prev_body.inverse());
+
+  // Figure out whether the virtual chassis' z-axis points up
+  // or down in the world frame
+  Vector4d qvec;
+  get_q(qvec, x_t);
+  // Virtual chassis orientation in world frame
+  Matrix3d R = Quaterniond(qvec(0), qvec(1), qvec(2), qvec(3)).toRotationMatrix();
+  // Accounts for z-axis direction in later calculations
+  double multiplier = 1;
+  // computes z-axis distance of a module from the module closest to the ground
+  // (in the virtual chassis frame). Essentially, if the extreme (max/min) value
+  // provided is correct, this function returns a value greater than 0. Otherwise,
+  // we should make the passed value the new extreme
+  double (*diff_func)(double, double); 
+  if (Vector3d(0, 0, g).dot(Vector3d(R(0, 2), R(1, 2), R(2, 2))) < 0) {
+    diff_func = [](double z, double zmax) { return zmax - z; };
+  } else {
+    diff_func = [](double z, double zmin) { return z - zmin; };
+    multiplier = -1;
+  }
+
+  // Taken straight from "Simplified Motion Modeling" paper
+  vector<Vector3d> pi(num_modules);
+  vector<double> zi(num_modules);
+  vector<double> wi(num_modules);
+
+  double z_extreme = 0;
+
+  // Module radius
+  Vector3d d(0, 0, module_rad);
+
+  for (size_t i = 0; i < num_modules; i++) {
+    pi[i] = transforms[i + 1].block(0, 3, 3, 1) - 
+                      prev_transforms[i + 1].block(0, 3, 3, 1);
+
+    Matrix3d Ri = transforms[i + 1].block(0, 0, 3, 3);
+
+    Matrix3d omega_i = prev_transforms[i + 1].block(0, 0, 3, 3).transpose()*Ri;
+    
+    Vector3d ri = multiplier*Ri.transpose()*d;
+
+    pi[i] += Ri*(omega_i - omega_i.transpose())*ri/2;
+
+    zi[i] = transforms[i + 1](2, 3);
+    if (diff_func(zi[i], z_extreme) < 0) {
+      z_extreme = zi[i];
+    }
+  }
+
+  double wsum = 0;
+  for (size_t i = 0; i < num_modules; i++) {
+    double diff = diff_func(zi[i], z_extreme);
+    double gamma_i = (diff < zthresh) ? (1 - diff/zthresh) : 0;
+
+    wi[i] = (1 - exp(-gamma_i))/(1 - exp(-1));
+    wsum += wi[i];
+  }
+
+  Vector3d disp(0, 0, 0);
+  for (size_t i = 0; i < num_modules; i++) {
+    disp -= (wi[i]/wsum)*pi[i];
+  }
+  disp(2) = 0; // body velocity along z-axis is negligible
+  return R*disp;
+}
 
 void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
        double dt, size_t num_modules, short body_frame_module) {

@@ -29,6 +29,9 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, const VectorXd& x_t
                          size_t num_modules, double dt,
                          short body_frame_module, const Matrix4d& prev_vc);
 
+Vector3d get_body_displacement(const VectorXd& x_t, const VectorXd& x_t_1,
+                               size_t num_modules, const Matrix4d& prev_vc);
+
 /*
  * f: predicts current state given previous state and time interval
  * (process model)

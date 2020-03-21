@@ -94,6 +94,8 @@ void handle_feedback(FeedbackMsg msg) {
     first = false;
   }
 
+  VectorXd x_t_1(ekf.x_t);
+
   ekf.predict(u_t, dt);
   ekf.correct(z_t);  
  
@@ -135,6 +137,13 @@ void handle_feedback(FeedbackMsg msg) {
   body_frame.transform.rotation.x = q_body_world.x();
   body_frame.transform.rotation.y = q_body_world.y();
   body_frame.transform.rotation.z = q_body_world.z();
+
+  if (body_frame_module < 0) {
+    Vector3d body_disp = get_body_displacement(ekf.x_t, x_t_1, num_modules, ekf.vc);
+    body_frame.transform.translation.x += body_disp(0);
+    body_frame.transform.translation.y += body_disp(1);
+    body_frame.transform.translation.z += body_disp(2);
+  }
 
   head_frame.transform.rotation.w = q_head_body.w();
   head_frame.transform.rotation.x = q_head_body.x();
@@ -206,9 +215,11 @@ int main(int argc, char **argv) {
 
   // Adjust covariances for virtual chassis estimator
   if (body_frame_module < 0) {
-    ekf.Q.block(3, 3, 3, 3) *= 100;
-    ekf.Q.block(6, 6, 3, 3) *= 100;
-    ekf.Q.block(9, 9, num_modules, num_modules) /= 100;
+    if (gait.compare("roll") == 0) {
+      ekf.Q.block(3, 3, 3, 3) *= 100;
+      ekf.Q.block(6, 6, 3, 3) *= 100;
+    }
+    ekf.Q.block(9 + num_modules, 9 + num_modules, num_modules, num_modules) *= 10;
     ekf.R.block(0, 0, num_modules, num_modules) /= 100;
   }
 
