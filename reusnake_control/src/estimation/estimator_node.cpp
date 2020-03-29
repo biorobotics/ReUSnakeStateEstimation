@@ -217,6 +217,7 @@ int main(int argc, char **argv) {
       // Filter estimates body frame orientation. Now calculate head orientation
       transformArray transforms = makeUnifiedSnake(angles);
       Matrix4d vc = getSnakeVirtualChassis(transforms);
+      makeVirtualChassisConsistent(ekf.vc, vc);
 
       // Transformation of head frame wrt body frame
       Matrix4d T_head_body;
