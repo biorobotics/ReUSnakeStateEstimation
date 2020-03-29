@@ -36,15 +36,13 @@ void quaternion_stm(Matrix4d& stm, Vector3d& w_t_1, double dt) {
                w_t_1(0),         0,  w_t_1(2), -w_t_1(1),
                w_t_1(1), -w_t_1(2),         0,  w_t_1(0),
                w_t_1(2),  w_t_1(1), -w_t_1(0),         0;
-  Matrix4d I = Matrix<double, 4, 4>::Identity();
-  
   double wmag = w_t_1.norm(); // magnitude of angular velocity
   double s = 0.5*dt*wmag;
 
   if (s == 0) {
-    stm = I;
+    stm = Matrix4d::Identity();
   } else {
-    stm = I*cos(s) + omega*sin(s)/wmag;
+    stm = Matrix4d::Identity()*cos(s) + omega*sin(s)/wmag;
   }
 }
 
@@ -75,9 +73,9 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, const VectorXd& x_t
   Matrix3d prev_body_R;
   Matrix3d next_body_R;
 
-  Vector3d body_pos = transforms[body_frame_module].block(0, 3, 3, 1);
-  Vector3d prev_body_pos = prev_transforms[body_frame_module].block(0, 3, 3, 1);
-  Vector3d next_body_pos = prev_transforms[body_frame_module].block(0, 3, 3, 1);
+  Vector3d body_pos = transforms[body_frame_module].block<3, 1>(0, 3);
+  Vector3d prev_body_pos = prev_transforms[body_frame_module].block<3, 1>(0, 3);
+  Vector3d next_body_pos = prev_transforms[body_frame_module].block<3, 1>(0, 3);
 
   // Negative module means virtual chassis is the body frame
   if (body_frame_module < 0) {
@@ -90,26 +88,25 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, const VectorXd& x_t
     makeVirtualChassisConsistent(vc, old_vc);
     makeVirtualChassisConsistent(vc, next_vc);
 
-    body_R = vc.block(0, 0, 3, 3);
-    prev_body_R = old_vc.block(0, 0, 3, 3);
-    next_body_R = next_vc.block(0, 0, 3, 3);
+    body_R = vc.block<3, 3>(0, 0);
+    prev_body_R = old_vc.block<3, 3>(0, 0);
+    next_body_R = next_vc.block<3, 3>(0, 0);
 
-    body_pos = vc.block(0, 3, 3, 1);
-    prev_body_pos = old_vc.block(0, 3, 3, 1);
-    next_body_pos = next_vc.block(0, 3, 3, 1);  
+    body_pos = vc.block<3, 1>(0, 3);
+    prev_body_pos = old_vc.block<3, 1>(0, 3);
+    next_body_pos = next_vc.block<3, 1>(0, 3);  
   } else {
-    body_R = transforms[body_frame_module].block(0, 0, 3, 3);
-    prev_body_R= prev_transforms[body_frame_module].block(0, 0, 3, 3);
-    next_body_R = next_transforms[body_frame_module].block(0, 0, 3, 3);
+    body_R = transforms[body_frame_module].block<3, 3>(0, 0);
+    prev_body_R= prev_transforms[body_frame_module].block<3, 3>(0, 0);
+    next_body_R = next_transforms[body_frame_module].block<3, 3>(0, 0);
 
-    body_pos = transforms[body_frame_module].block(0, 3, 3, 1);
-    prev_body_pos = prev_transforms[body_frame_module].block(0, 3, 3, 1);
-    next_body_pos = prev_transforms[body_frame_module].block(0, 3, 3, 1);  
+    body_pos = transforms[body_frame_module].block<3, 1>(0, 3);
+    prev_body_pos = prev_transforms[body_frame_module].block<3, 1>(0, 3);
+    next_body_pos = prev_transforms[body_frame_module].block<3, 1>(0, 3);  
   }
     
   // Invert orientation quaternion and convert it into rotation matrix
-  Vector4d qvec;
-  get_q(qvec, x_t);
+  Vector4d qvec = get_q(x_t);
   Quaterniond q_inv(qvec(0), -qvec(1), -qvec(2), -qvec(3));
  
   // Rotation matrix of world frame with respect to body frame
@@ -129,8 +126,7 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, const VectorXd& x_t
                           prev_body_R.transpose()*prev_body_pos)/(dt*dt);
 
   // Acceleration of body frame in world frame
-  Vector3d body_accel;
-  get_a(body_accel, x_t);
+  Vector3d body_accel = get_a(x_t);
   
   // Acceleration of body frame in head frame
   Vector3d a_body = body_R*V_t*body_accel;
@@ -149,24 +145,15 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, const VectorXd& x_t
   w_internal.setZero();
 
   // Compute angular velocity of body frame in module frame
-  Vector3d w_t;
-  get_w(w_t, x_t);
+  Vector3d w_t = get_w(x_t);
 
   // Populate gyro values
   ang_vel = w_internal + body_R*w_t;
 } 
 
-Vector3d get_body_displacement(const VectorXd& x_t, const VectorXd& x_t_1,
+Vector3d get_body_displacement(const vector<double>& angles, const vector<double>& prev_angles,
+                               const Matrix3d& R_vc_world, 
                                size_t num_modules, const Matrix4d& prev_vc) {
-  vector<double> angles(num_modules);
-  vector<double> prev_angles(num_modules);
-
-  for (size_t i = 0; i < num_modules; i++) {
-    angles[i] = get_theta(x_t, i);
-    prev_angles[i] = get_theta(x_t_1, i);
-  }
-
-  // TODO: these calculations happen so often. memoize them in a stateinfo struct
   transformArray transforms = makeUnifiedSnake(angles);
   transformArray prev_transforms = makeUnifiedSnake(prev_angles);
 
@@ -180,57 +167,39 @@ Vector3d get_body_displacement(const VectorXd& x_t, const VectorXd& x_t_1,
   leftTransformSnake(transforms, body.inverse());
   leftTransformSnake(prev_transforms, prev_body.inverse());
 
-  // Figure out whether the virtual chassis' z-axis points up
-  // or down in the world frame
-  Vector4d qvec;
-  get_q(qvec, x_t);
-  // Virtual chassis orientation in world frame
-  Matrix3d R = Quaterniond(qvec(0), qvec(1), qvec(2), qvec(3)).toRotationMatrix();
-  // Accounts for z-axis direction in later calculations
-  double multiplier = 1;
-  // computes z-axis distance of a module from the module closest to the ground
-  // (in the virtual chassis frame). Essentially, if the extreme (max/min) value
-  // provided is correct, this function returns a value greater than 0. Otherwise,
-  // we should make the passed value the new extreme
-  double (*diff_func)(double, double); 
-  if (Vector3d(0, 0, g).dot(Vector3d(R(0, 2), R(1, 2), R(2, 2))) < 0) {
-    diff_func = [](double z, double zmax) { return zmax - z; };
-  } else {
-    diff_func = [](double z, double zmin) { return z - zmin; };
-    multiplier = -1;
-  }
-
   // Taken straight from "Simplified Motion Modeling" paper
   vector<Vector3d> pi(num_modules);
   vector<double> zi(num_modules);
   vector<double> wi(num_modules);
 
-  double z_extreme = 0;
+  double z_min = 0;
 
-  // Module radius
-  Vector3d d(0, 0, module_rad);
+  // Vector that points down wrt world frame, represented in the virtual chassis frame
+  Vector3d d(0, 0, -module_rad);
+  d = R_vc_world.transpose()*d;
 
   for (size_t i = 0; i < num_modules; i++) {
-    pi[i] = transforms[i + 1].block(0, 3, 3, 1) - 
-                      prev_transforms[i + 1].block(0, 3, 3, 1);
+    pi[i] = transforms[i + 1].block<3, 1>(0, 3) - 
+                      prev_transforms[i + 1].block<3, 1>(0, 3);
 
-    Matrix3d Ri = transforms[i + 1].block(0, 0, 3, 3);
+    Matrix3d prev_Ri = prev_transforms[i + 1].block<3, 3>(0, 0);
 
-    Matrix3d omega_i = prev_transforms[i + 1].block(0, 0, 3, 3).transpose()*Ri;
+    Matrix3d omega_i = prev_Ri.transpose()*transforms[i + 1].block<3, 3>(0, 0);
     
-    Vector3d ri = multiplier*Ri.transpose()*d;
+    Vector3d ri = prev_Ri.transpose()*d;
 
-    pi[i] += Ri*(omega_i - omega_i.transpose())*ri/2;
+    pi[i] += prev_Ri*(omega_i - omega_i.transpose())*ri/2;
 
-    zi[i] = transforms[i + 1](2, 3);
-    if (diff_func(zi[i], z_extreme) < 0) {
-      z_extreme = zi[i];
+    Vector3d pos = R_vc_world*transforms[i + 1].block<3, 1>(0, 3);
+    zi[i] = pos(2);
+    if (zi[i] < z_min) {
+      z_min = zi[i];
     }
   }
 
   double wsum = 0;
   for (size_t i = 0; i < num_modules; i++) {
-    double diff = diff_func(zi[i], z_extreme);
+    double diff = zi[i] - z_min;
     double gamma_i = (diff < zthresh) ? (1 - diff/zthresh) : 0;
 
     wi[i] = (1 - exp(-gamma_i))/(1 - exp(-1));
@@ -241,19 +210,16 @@ Vector3d get_body_displacement(const VectorXd& x_t, const VectorXd& x_t_1,
   for (size_t i = 0; i < num_modules; i++) {
     disp -= (wi[i]/wsum)*pi[i];
   }
-  disp(2) = 0; // body velocity along z-axis is negligible
-  return R*disp;
+  return R_vc_world*disp;
 }
 
 void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
-       double dt, size_t num_modules, short body_frame_module) {
+       double dt, size_t num_modules, short body_frame_module, const Matrix4d& prev_vc) {
   // Predict acceleration
-  Vector3d a_t_1;
-  get_a(a_t_1, x_t_1);
+  Vector3d a_t_1 = get_a(x_t_1);
   set_a(x_t, exp(-tau*dt)*a_t_1);
 
-  Vector3d w_t_1;
-  get_w(w_t_1, x_t_1);
+  Vector3d w_t_1 = get_w(x_t_1);
   
   // Predict angular velocity
   if (body_frame_module < 0) {
@@ -269,8 +235,7 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
   Matrix4d stm;
   quaternion_stm(stm, w_t_1, dt);
 
-  Vector4d q_t_1;
-  get_q(q_t_1, x_t_1);
+  Vector4d q_t_1 = get_q(x_t_1);
 
   Vector4d q_t;
   q_t = stm*q_t_1; //current orientation
@@ -278,12 +243,16 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
 
   set_q(x_t, q_t);
 
+  vector<double> angles(num_modules);
+  vector<double> prev_angles(num_modules);
   for (size_t i = 0; i < num_modules; i++) {
     // Predict joint angles
     double prev_angle = get_theta(x_t_1, i);
     double prev_theta_dot = get_theta_dot(x_t_1, i, num_modules);
     double cur_theta = prev_angle + prev_theta_dot*dt;
     set_theta(x_t, i, cur_theta);
+    angles[i] = cur_theta;
+    prev_angles[i] = prev_angle;
   
     /*
     if (cur_angle > M_PI/2 && prev_angle < -M_PI/2) {
@@ -296,6 +265,16 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
     set_theta_dot(x_t, i,
                   lambda*u_t(i) + (1 - lambda)*prev_theta_dot,
                   num_modules);
+  }
+
+  if (body_frame_module < 0) {
+    Vector3d p_t_1 = get_p(x_t_1);
+    Quaterniond q(q_t(0), q_t(1), q_t(2), q_t(3));
+    Vector3d p_t = p_t_1 + get_body_displacement(angles, prev_angles, q.toRotationMatrix(),
+                                                 num_modules, prev_vc);
+    set_p(x_t, p_t);
+  } else {
+    set_p(x_t, Vector3d::Zero());
   }
 }
 
@@ -353,8 +332,7 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules,
   /* Predict accelerometer and gyro values */
 
   // Invert orientation quaternion and convert it into rotation matrix
-  Vector4d qvec;
-  get_q(qvec, x_t);
+  Vector4d qvec = get_q(x_t);
   Quaterniond q_inv(qvec(0), -qvec(1), -qvec(2), -qvec(3));
  
   // Rotation matrix of world frame with respect to body frame
@@ -363,29 +341,27 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules,
   // Perceived acceleration due to gravity in world frame
   Vector3d gvec(0, 0, g);
 
-  Vector3d w_t;
-  get_w(w_t, x_t);
+  Vector3d w_t = get_w(x_t);
 
   for (size_t i = 0; i < num_modules; i++) {
     /* Accelerometer calculations */
 
     // Rotation matrix of body frame with respect to current module frame
-    Matrix3d R_inv = transforms[i + 1].block(0, 0, 3, 3).transpose();
+    Matrix3d R_inv = transforms[i + 1].block<3, 3>(0, 0).transpose();
 
     // Perceived acceleration due to gravity in module frame
     Vector3d a_grav = R_inv*V_t*gvec;
 
     // Double differentiate module position in body frame for
     // "internal acceleration" in module frame
-    Vector3d position = transforms[i + 1].block(0, 3, 3, 1);
-    Vector3d prev_position = prev_transforms[i + 1].block(0, 3, 3, 1);
-    Vector3d next_position = next_transforms[i + 1].block(0, 3, 3, 1);
+    Vector3d position = transforms[i + 1].block<3, 1>(0, 3);
+    Vector3d prev_position = prev_transforms[i + 1].block<3, 1>(0, 3);
+    Vector3d next_position = next_transforms[i + 1].block<3, 1>(0, 3);
 
     Vector3d a_internal = R_inv*(next_position - 2*position + prev_position)/(dt*dt);
 
     // Acceleration of body frame in world frame
-    Vector3d body_accel;
-    get_a(body_accel, x_t);
+    Vector3d body_accel = get_a(x_t);
     
     // Acceleration of body frame in module frame
     Vector3d a_body = R_inv*V_t*body_accel;
@@ -397,8 +373,8 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules,
     /* Gyro calculations */
 
     // Current and previous rotation matrix of module frame with respect to body frame
-    Matrix3d R = transforms[i + 1].block(0, 0, 3, 3);
-    Matrix3d prev_R = prev_transforms[i + 1].block(0, 0, 3, 3);
+    Matrix3d R = transforms[i + 1].block<3, 3>(0, 0);
+    Matrix3d prev_R = prev_transforms[i + 1].block<3, 3>(0, 0);
 
     Matrix3d velocity_matrix = R*prev_R.transpose()/dt;
     Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));
@@ -408,8 +384,7 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules,
     }
     
     // Compute angular velocity of body frame in module frame
-    Vector3d w_t;
-    get_w(w_t, x_t);
+    Vector3d w_t = get_w(x_t);
     Vector3d w_t_module = R_inv*w_t;
 
     // Populate gyro values
@@ -433,39 +408,122 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules,
 * body_frame_module: module to use as body frame. If -1, use virtual chassis
 */
 void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
-        size_t num_modules, short body_frame_module) {
+        size_t num_modules, short body_frame_module, Matrix4d& prev_vc) {
+  size_t statelen = state_length(num_modules);
+
   F_t.setZero();
 
-  // Acceleration is only dependent on previous acceleration
-  F_t.block(0, 0, 3, 3) = exp(-tau*dt)*Matrix3d::Identity();
+  // Jacobian of position wrt previous position
+  F_t.block<3, 3>(0, 0).setIdentity();
 
-  Vector3d w_t_1;
-  get_w(w_t_1, x_t_1);
+  if (body_frame_module < 0) {
+    vector<double> angles(num_modules);
+    vector<double> prev_angles(num_modules);
+    for (size_t i = 0; i < num_modules; i++) {
+      prev_angles[i] = get_theta(x_t_1, i);
+      angles[i] = prev_angles[i] + get_theta_dot(x_t_1, i, num_modules)*dt;
+    }
+
+    // Jacobian of position wrt error angle via chain rule
+    
+    // Compute Jacobian of quaternion wrt error angle
+    Vector4d q_t_1 = get_q(x_t_1);
+    MatrixXd dq_ddtheta(4, 3);
+    dq_ddtheta << -q_t_1(1), -q_t_1(2), -q_t_1(3),
+                  q_t_1(0), -q_t_1(3), q_t_1(2),
+                  q_t_1(3), q_t_1(0), -q_t_1(1),
+                  -q_t_1(2), q_t_1(1), q_t_1(0);
+
+    dq_ddtheta *= 0.5;
+
+    MatrixXd dp_dq(3, 4);
+    for (size_t i = 0; i < 4; i++) {
+      Vector4d q_t_1_plus(q_t_1); 
+      Vector4d q_t_1_minus(q_t_1); 
+      q_t_1_plus(i) += epsilon;
+      q_t_1_minus(i) -= epsilon;
+      Quaterniond q_plus(q_t_1_plus(0), q_t_1_plus(1), q_t_1_plus(2), q_t_1_plus(3));
+      Quaterniond q_minus(q_t_1_minus(0), q_t_1_minus(1), q_t_1_minus(2), q_t_1_minus(3));
+      
+      Vector3d disp_plus = get_body_displacement(angles, prev_angles, q_plus.toRotationMatrix(),
+                                                 num_modules, prev_vc);
+      Vector3d disp_minus = get_body_displacement(angles, prev_angles, q_minus.toRotationMatrix(),
+                                                 num_modules, prev_vc);
+      
+      dp_dq.col(i) = (disp_plus - disp_minus)/(2*epsilon);
+    }
+    F_t.block<3, 3>(0, 3) = dp_dq*dq_ddtheta;
+
+    Quaterniond q(q_t_1(0), q_t_1(1), q_t_1(2), q_t_1(3));
+    Matrix3d R = q.toRotationMatrix();
+    // Numerical Jacobian wrt angles and angular velocities
+    for (size_t i = 0; i < 2*num_modules; i++) {
+      // Perturb angles
+      if (i < num_modules) {
+        vector<double> prev_angles_plus(prev_angles);
+        vector<double> prev_angles_minus(prev_angles);
+        vector<double> angles_plus(angles);
+        vector<double> angles_minus(angles);
+
+        prev_angles_plus[i] += epsilon;
+        prev_angles_minus[i] -= epsilon;
+        angles_plus[i] += epsilon;
+        angles_minus[i] -= epsilon;
+
+        Vector3d disp_plus = get_body_displacement(angles_plus, prev_angles_plus, R,
+                                                   num_modules, prev_vc);
+        Vector3d disp_minus = get_body_displacement(angles_minus, prev_angles_minus, R,
+                                                   num_modules, prev_vc);
+
+        F_t.block<3, 1>(0, 12 + i) = (disp_plus - disp_minus)/(2*epsilon);
+      } else {
+        vector<double> angles_plus(angles);
+        vector<double> angles_minus(angles);
+
+        angles_plus[i - num_modules] += epsilon*dt;
+        angles_minus[i - num_modules] -= epsilon*dt;
+
+        Vector3d disp_plus = get_body_displacement(angles_plus, prev_angles, R,
+                                                   num_modules, prev_vc);
+        Vector3d disp_minus = get_body_displacement(angles_minus, prev_angles, R,
+                                                   num_modules, prev_vc);
+
+        F_t.block<3, 1>(0, 12 + i) = (disp_plus - disp_minus)/(2*epsilon);
+      }
+    }
+  } else {
+    F_t.block(0, 3, 3, statelen - 4).setZero();
+  }
+
+  // Acceleration is only dependent on previous acceleration
+  F_t.block<3, 3>(9, 9) = exp(-tau*dt)*Matrix3d::Identity();
+
+  Vector3d w_t_1 = get_w(x_t_1);
 
   // Jacobian of error angle with respect to previous
   Vector3d delta_theta = w_t_1*dt;
   double theta = delta_theta.norm();
 
   if (theta == 0) {
-    F_t.block(3, 3, 3, 3).setIdentity(3, 3);
+    F_t.block<3, 3>(3, 3).setIdentity();
   }
   else {
     AngleAxisd ang_ax(theta, delta_theta/theta);
-    F_t.block(3, 3, 3, 3) = ang_ax.toRotationMatrix().transpose();
+    F_t.block<3, 3>(3, 3) = ang_ax.toRotationMatrix().transpose();
   }
 
   // Account for virtual chassis constant velocity model
   if (body_frame_module < 0) {
-    F_t.block(6, 6, 3, 3) = Matrix3d::Identity();
+    F_t.block<3, 3>(6, 6) = Matrix3d::Identity();
   }
 
   MatrixXd I = MatrixXd::Identity(num_modules, num_modules);
   // Joint angle Jacobian
-  F_t.block(9, 9, num_modules, num_modules) = I;
-  F_t.block(9, 9 + num_modules, num_modules, num_modules) = dt*I;
+  F_t.block(12, 12, num_modules, num_modules) = I;
+  F_t.block(12, 12 + num_modules, num_modules, num_modules) = dt*I;
 
   // Joint velocity Jacobian
-  F_t.block(9 + num_modules, 9 + num_modules,
+  F_t.block(12 + num_modules, 12 + num_modules,
             num_modules, num_modules) = (1 - lambda)*I;
 }
 
@@ -486,7 +544,9 @@ void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules,
   // Use chain rule to evaluate Jacobian wrt error quaternion
   MatrixXd dz_dq(sensorlen, 4);
 
-  for (size_t col = 0; col < statelen; col++) {
+  H_t.block(0, 0, sensorlen, 3).setZero();
+
+  for (size_t col = 3; col < statelen; col++) {
     // Perturb state variable corresponding to this column of J
     VectorXd x_t_plus(x_t);
     VectorXd x_t_minus(x_t);
@@ -501,9 +561,7 @@ void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules,
     // Compute derivative
     VectorXd dz_t = (z_t_plus - z_t_minus)/(2*epsilon);
 
-    if (col < 3) {
-      H_t.col(col) = dz_t;
-    } else if (col < 7) {
+    if (col < 7) {
       dz_dq.col(col - 3) = dz_t;
     } else {
       H_t.col(col - 1) = dz_t;
@@ -512,11 +570,10 @@ void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules,
 
   // Derivative of angle measurements with respect to joint angles
   // is simply 1
-  H_t.block(0, 9, num_modules, num_modules).setIdentity();
+  H_t.block(0, 12, num_modules, num_modules).setIdentity();
 
   // Compute Jacobian of quaternion wrt error angle
-  Vector4d q_t;
-  get_q(q_t, x_t);
+  Vector4d q_t = get_q(x_t);
   MatrixXd dq_ddtheta(4, 3);
   dq_ddtheta << -q_t(1), -q_t(2), -q_t(3),
                 q_t(0), -q_t(3), q_t(2),
@@ -527,14 +584,6 @@ void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules,
 
   // Apply chain rule
   H_t.block(0, 3, sensorlen, 3) = dz_dq*dq_ddtheta;
-}
-
-size_t state_length(size_t num_modules) {
-  return 10 + 2*num_modules;
-}
-
-size_t sensor_length(size_t num_modules) {
-  return 7*num_modules;
 }
 
 Matrix4d init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules,
@@ -560,16 +609,16 @@ Matrix4d init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules,
   Matrix4d body;
   if (body_frame_module < 0) {
     body = getSnakeVirtualChassis(transforms);
-    get_alpha(a_grav_body, z_t, 0, num_modules);
+    a_grav_body = get_alpha(z_t, 0, num_modules);
   } else {
-    get_alpha(a_grav_body, z_t, body_frame_module - 1, num_modules);
+    a_grav_body = get_alpha(z_t, body_frame_module - 1, num_modules);
   }
 
   // Rotation matrix representing body frame in world frame
   Matrix3d R = Quaterniond::FromTwoVectors(a_grav_body, a_grav).toRotationMatrix(); 
 
   if (body_frame_module < 0) {
-    R = R*transforms[1].block(0, 0, 3, 3).transpose()*body.block(0, 0, 3, 3);
+    R = R*transforms[1].block<3, 3>(0, 0).transpose()*body.block<3, 3>(0, 0);
   }
 
   // Set yaw to 0
@@ -578,11 +627,7 @@ Matrix4d init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules,
 
   Quaterniond new_q(new_R);
 
-  Vector4d qvec;
-  qvec(0) = new_q.w();
-  qvec(1) = new_q.x();
-  qvec(2) = new_q.y();
-  qvec(3) = new_q.z();
+  Vector4d qvec(new_q.w(), new_q.x(), new_q.y(), new_q.z());
   
   set_q(x_t, qvec);
 
@@ -590,113 +635,3 @@ Matrix4d init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules,
     return body;
   }
 }
-
-// Helper functions to manipulate information from state vector
-
-// Get acceleration
-void get_a(Vector3d& a_t, const VectorXd& x_t) {
-  for (size_t i = 0; i < 3; i++) {
-    a_t(i) = x_t(i);
-  }
-}
-
-// Set acceleration
-void set_a(VectorXd& x_t, const Vector3d& a_t) {
-  for (size_t i = 0; i < 3; i++) {
-    x_t(i) = a_t(i);
-  }
-}
-
-// Get orientation (wxyz)
-void get_q(Vector4d& q_t, const VectorXd& x_t) {
-  for (size_t i = 0; i < 4; i++) {
-    q_t(i) = x_t(3 + i);
-  }
-}
-
-// Set orientation (wxyz)
-void set_q(VectorXd& x_t, const Vector4d& q_t) {
-  for (size_t i = 0; i < 4; i++) {
-    x_t(3 + i) = q_t(i);
-  }
-}
-
-// Get angular velocity
-void get_w(Vector3d& w_t, const VectorXd& x_t) {
-  for (size_t i = 0; i < 3; i++) {
-    w_t(i) = x_t(7 + i);
-  }
-}
-
-// Set angular velocity
-void set_w(VectorXd& x_t, const Vector3d& w_t) {
-  for (size_t i = 0; i < 3; i++) {
-    x_t(7 + i) = w_t(i);
-  }
-}
-
-// Get ith joint angle
-double get_theta(const VectorXd& x_t, size_t i) {
-  return x_t(10 + i);
-}
-
-// Set ith joint angle
-void set_theta(VectorXd& x_t, size_t i, double theta) {
-  x_t(10 + i) = theta;
-}
-
-// Get ith joint velocity
-double get_theta_dot(const VectorXd& x_t, size_t i, size_t num_modules) {
-  return x_t(10 + num_modules + i);
-}
-
-// Set ith joint velocity
-void set_theta_dot(VectorXd& x_t, size_t i, double theta_dot,
-                   size_t num_modules) {
-  x_t(10 + num_modules + i) = theta_dot;
-}
-
-// Helper functions to manipulate information from sensor vector
-
-// Get ith joint angle
-double get_phi(const VectorXd& z_t, size_t i) {
-  return z_t(i);
-}
-
-// Set ith joint angle
-void set_phi(VectorXd& z_t, size_t i, double phi) {
-  z_t(i) = phi;
-}
-
-// Get ith accelerometer vector
-void get_alpha(Vector3d& alpha_t, const VectorXd& z_t, size_t i,
-               size_t num_modules) {
-  for (size_t j = 0; j < 3; j++) {
-    alpha_t(j) = z_t(num_modules + 3*i + j);
-  }
-}
-
-// Set ith accelerometer vector
-void set_alpha(VectorXd& z_t, const VectorXd& alpha_t, size_t i,
-               size_t num_modules) {
-  for (size_t j = 0; j < 3; j++) {
-    z_t(num_modules + 3*i + j) = alpha_t(j);
-  }
-}
-
-// Get ith gyro vector
-double get_gamma(Vector3d& gamma_t, const VectorXd& z_t, size_t i,
-                 size_t num_modules) {
-  for (size_t j = 0; j < 3; j++) {
-    gamma_t(j) = z_t(4*num_modules + 3*i + j);
-  }
-}
-
-// Set ith gyro vector
-void set_gamma(VectorXd& z_t, const Vector3d& gamma_t, size_t i,
-               size_t num_modules) {
-  for (size_t j = 0; j < 3; j++) {
-    z_t(4*num_modules + 3*i + j) = gamma_t(j);
-  }
-}
-
