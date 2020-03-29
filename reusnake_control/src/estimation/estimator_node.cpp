@@ -216,12 +216,13 @@ int main(int argc, char **argv) {
 
       // Filter estimates body frame orientation. Now calculate head orientation
       transformArray transforms = makeUnifiedSnake(angles);
+      Matrix4d vc = getSnakeVirtualChassis(transforms);
 
       // Transformation of head frame wrt body frame
       Matrix4d T_head_body;
       
       if (body_frame_module < 0) {
-        T_head_body = ekf.vc.inverse();
+        T_head_body = vc.inverse();
       } else {
         T_head_body = transforms[body_frame_module].inverse();
       }
