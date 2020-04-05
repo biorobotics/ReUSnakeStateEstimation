@@ -118,7 +118,7 @@ int main(int argc, char **argv) {
   // Initialize pose message 
   pose.header.stamp = ros::Time::now();
   pose.header.frame_id = "world";
-  pose.child_frame_id = "complementary";
+  pose.child_frame_id = "link0";
   pose.transform.translation.x = 1;
   pose.transform.translation.y = 0;
   pose.transform.translation.z = 0;
@@ -128,6 +128,7 @@ int main(int argc, char **argv) {
   pose.transform.rotation.y = 0;
   pose.transform.rotation.z = 0;
   
+  /*
   // Initialize group using hebiros node
   ros::ServiceClient add_group_client = n.serviceClient<AddGroupFromNamesSrv>("hebiros/add_group_from_names");
   AddGroupFromNamesSrv add_group_srv;
@@ -155,6 +156,7 @@ int main(int argc, char **argv) {
   SetFeedbackFrequencySrv set_freq_srv;
   set_freq_srv.request.feedback_frequency = feedback_freq;
   set_freq_client.call(set_freq_srv);
+  */
 
   ros::Subscriber feedback_sub = n.subscribe("/hebiros/RUSNAKE/feedback", 100, handle_feedback);
 
