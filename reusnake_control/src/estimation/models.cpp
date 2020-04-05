@@ -611,6 +611,7 @@ Matrix4d init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules,
     body = getSnakeVirtualChassis(transforms);
     a_grav_body = get_alpha(z_t, 0, num_modules);
   } else {
+    body = transforms[body_frame_module];
     a_grav_body = get_alpha(z_t, body_frame_module - 1, num_modules);
   }
 
@@ -621,9 +622,11 @@ Matrix4d init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules,
     R = R*transforms[1].block<3, 3>(0, 0).transpose()*body.block<3, 3>(0, 0);
   }
 
-  // Set yaw to 0
-  Vector3d ypr = R.eulerAngles(2, 1, 0);
-  Matrix3d new_R = rotY(ypr(1))*rotX(ypr(2));
+  // Set head yaw to 0
+  Matrix3d head_R = R*body.block<3, 3>(0, 0).transpose();
+  Vector3d head_ypr = head_R.eulerAngles(2, 1, 0);
+  Matrix3d new_head_R = rotY(head_ypr(1))*rotX(head_ypr(2));
+  Matrix3d new_R = new_head_R*body.block<3, 3>(0, 0);
 
   Quaterniond new_q(new_R);
 

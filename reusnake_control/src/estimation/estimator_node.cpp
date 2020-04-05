@@ -185,15 +185,15 @@ int main(int argc, char **argv) {
   set_freq_client.call(set_freq_srv);
   */
 
-  joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 100);
+  joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 5);
   /*
   meas_pub = n.advertise<hebiros::FeedbackMsg>("/reusnake/measurement_model", 100);
   head_imu_pub = n.advertise<sensor_msgs::Imu>("/reusnake/head_imu", 100);
   */
-  pose_pub = n.advertise<geometry_msgs::PoseWithCovarianceStamped>("/reusnake/head_pose", 100);
+  pose_pub = n.advertise<geometry_msgs::PoseWithCovarianceStamped>("/reusnake/head_pose", 5);
 
   ros::Subscriber feedback_sub;
-  feedback_sub = n.subscribe("/hebiros/RUSNAKE/feedback", 100, handle_feedback);
+  feedback_sub = n.subscribe("/hebiros/RUSNAKE/feedback", 5, handle_feedback);
 
   tf2_ros::TransformBroadcaster pose_br;
   ros::Rate r(50); 
