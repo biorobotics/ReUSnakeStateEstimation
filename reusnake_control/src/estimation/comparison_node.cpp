@@ -27,11 +27,11 @@ void signalHandler( int signum ) {
   exit(signum);
 }
 
-// ZYZ
 Vector3d quaternion_to_euler(Quaterniond& q, Vector3d& prev_ypr) {
+  /*
   Vector3d ret = Vector3d::Zero();
   Matrix3d R = q.toRotationMatrix();
-  if (R(1, 2) != 0 && R(0, 2) != 0) {
+  if (R(1, 2) != 0 || R(0, 2) != 0) {
     ret(0) = atan2(R(1, 2), R(0, 2));
     if (sin(prev_ypr(1)) < 0) {
       if (ret(0) < 0) {
@@ -73,8 +73,46 @@ Vector3d quaternion_to_euler(Quaterniond& q, Vector3d& prev_ypr) {
   }
 
   return ret;
-}
+  */
+  Vector3d ret = Vector3d::Zero();
+  Matrix3d R = q.toRotationMatrix();
+  ret(0) = atan2(R(1, 0), R(0, 0));
+  if (cos(prev_ypr(1)) < 0) {
+    if (ret(0) < 0) {
+      ret(0) += M_PI;
+    } else {
+      ret(0) -= M_PI;
+    }
+  }
 
+  double ctheta;
+  if (sin(ret(0)) != 0) {
+    ctheta = R(1, 0)/sin(ret(0));
+  } else {
+    ctheta = R(0, 0)/cos(ret(0));
+  }
+  ret(1) = atan2(-R(2, 0), ctheta);
+  ret(2) = atan2(R(2, 1), R(2, 2));
+    
+  if (ctheta < 0) {
+    if (ret(2) < 0) {
+      ret(2) += M_PI;
+    } else {
+      ret(2) -= M_PI;
+    }
+  }
+
+  for (size_t i = 0; i < 3; i++) {
+    double diff = ret(i) - prev_ypr(i);
+    if (diff > 5) {
+      ret(i) -= 2*M_PI;
+    } else if (diff < -5) {
+      ret(i) += 2*M_PI;
+    }
+  }
+
+  return ret;
+}
 
 Matrix3d rotX(double angle){
   
@@ -199,6 +237,7 @@ int main(int argc, char **argv) {
         Vector3d estimator_ypr = quaternion_to_euler(estimator_rot_diff, estimator_prev_ypr);
         vins_prev_ypr = vins_ypr;
         estimator_prev_ypr = estimator_ypr;
+
         file << vins_ypr(2) << " " << vins_ypr(1) << " " << vins_ypr(0) << "\n";
         file1 << estimator_ypr(2) << " " << estimator_ypr(1) << " " << estimator_ypr(0) << "\n";
         file2 << vins_pos(0) << " " << vins_pos(1) << " " << vins_pos(2) << "\n";
