@@ -71,13 +71,13 @@ int main(int argc, char** argv) {
 
   // robomarker visualizer
   // robot marker 
-  marker_arr_pub = nh.advertise<visualization_msgs::MarkerArray>("/reusnake/model", 100);
+  marker_arr_pub = nh.advertise<visualization_msgs::MarkerArray>("/reusnake/model", 1);
   urdf::Model model;
   model.initFile(ros::package::getPath("reusnake_visualize") + "/urdf/sea_snake.urdf");
   builder = new robot_markers::Builder(model);
   builder->Init();
 
-  ros::Subscriber joint_state_sub = nh.subscribe("/reusnake/joint_state", 1000, joint_state_callback);
+  ros::Subscriber joint_state_sub = nh.subscribe("/reusnake/joint_state", 1, joint_state_callback);
 
   /* ROS loop */
   for (int publish_count = 0; nh.ok(); publish_count++)
