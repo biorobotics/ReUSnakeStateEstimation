@@ -162,15 +162,15 @@ int main(int argc, char **argv) {
   ros::Subscriber joint_sub = n.subscribe<sensor_msgs::JointState>("/snake/joint_states", 1, handle_joints); 
   for (size_t i = 0; i < num_modules; i++) {
     if (i + 1 < 10) {
-      imu_subs.push_back(n.subscribe<sensor_msgs::Imu>("/snake/sensors/SA00" + to_string(i + 1) + "__MoJo/imu", 1, handle_imu(i)));
+      imu_subs.push_back(n.subscribe<sensor_msgs::Imu>("/snake/sensors/SA00" + to_string(i + 1) + "__MoJo/imu", 3, handle_imu(i)));
     } else {
-      imu_subs.push_back(n.subscribe<sensor_msgs::Imu>("/snake/sensors/SA0" + to_string(i + 1) + "__MoJo/imu", 1, handle_imu(i)));
+      imu_subs.push_back(n.subscribe<sensor_msgs::Imu>("/snake/sensors/SA0" + to_string(i + 1) + "__MoJo/imu", 3, handle_imu(i)));
     }
 
     if (i < 10) { 
-      cmd_subs.push_back(n.subscribe<control_msgs::JointControllerState>("/snake/S_0" + to_string(i) + "_eff_pos_controller/state", 1, handle_joint_command(i)));
+      cmd_subs.push_back(n.subscribe<control_msgs::JointControllerState>("/snake/S_0" + to_string(i) + "_eff_pos_controller/state", 3, handle_joint_command(i)));
     } else { 
-      cmd_subs.push_back(n.subscribe<control_msgs::JointControllerState>("/snake/S_" + to_string(i) + "_eff_pos_controller/state", 1, handle_joint_command(i)));
+      cmd_subs.push_back(n.subscribe<control_msgs::JointControllerState>("/snake/S_" + to_string(i) + "_eff_pos_controller/state", 3, handle_joint_command(i)));
     }
 
     imus_ready[i] = false;

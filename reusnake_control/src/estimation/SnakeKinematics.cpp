@@ -176,13 +176,13 @@ Matrix4d getSEASnakeTransform(double angle, int joint)
   // Build translation transform to move back along the snake
   Matrix4d translateIn = Matrix4d::Identity();
   Matrix4d translateOut = Matrix4d::Identity();
-  translateIn(2,3) = -inputToJoint;
-  translateOut(2,3) = -jointToOutput;
+  translateIn(2,3) = inputToJoint;
+  translateOut(2,3) = jointToOutput;
 
   // Compute the rotation matrix
   Matrix4d R = Matrix4d::Identity();
   
-  R.block<3,3>(0,0) = rotZ(-M_PI/2)*rotY(angle);
+  R.block<3,3>(0,0) = rotZ(-M_PI/2)*rotY(-angle);
 
   // Translate, rotate, then translate to find entire transform.
   return translateOut * R * translateIn;
