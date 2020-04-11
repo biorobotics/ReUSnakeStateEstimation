@@ -5,40 +5,28 @@
 #include <geometry_msgs/Quaternion.h>
 #include <geometry_msgs/TransformStamped.h>
 #include <tf2_ros/transform_broadcaster.h>
-#include "hebiros/FeedbackMsg.h"
-#include "hebiros/AddGroupFromNamesSrv.h"
-#include "hebiros/SetFeedbackFrequencySrv.h"
 #include <sensor_msgs/JointState.h>
 #include <sensor_msgs/Imu.h>
+#include <std_msgs/Float64.h>
+#include <control_msgs/JointControllerState.h>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include "SnakeKinematics.h"
 #include "VirtualChassisKinematics.h"
 #include <iostream>
-
-/* This file performs estimation by subscribing to feedback
- * from the hebiros node
- */
+#include <hebiros/FeedbackMsg.h>
 
 using namespace Eigen;
-using namespace hebiros;
 
-static const size_t num_modules = 12;
-static const int feedback_freq = 100;
-static const double dt = 1.0/feedback_freq;
+static const size_t num_modules = 16;
+static const double dt = 1.0/50;
 
 size_t statelen;
 size_t sensorlen;
 
 static VectorXd z_t;
+static VectorXd u_t;
 static EKF ekf;
 static ros::Publisher joint_pub;
-//static ros::Publisher meas_pub;
-
-// Publish the expected imu measurement if there were an imu on the head
-/*
-static ros::Publisher head_imu_pub; 
-static sensor_msgs::Imu head_imu;
-*/
 
 static sensor_msgs::JointState joint_state;
 static geometry_msgs::TransformStamped head_frame;
@@ -46,63 +34,70 @@ static geometry_msgs::TransformStamped body_frame;
 static ros::Publisher pose_pub;
 static geometry_msgs::PoseWithCovarianceStamped head_pose;
 
-static bool first = true;
-
 // Previous position command
 static vector<double> prev_cmd(num_modules);
+static vector<double> prev_cmd_times(num_modules);
 
 static short body_frame_module;
 
-void handle_feedback(FeedbackMsg msg) {
-  VectorXd u_t;
-  
-  if (body_frame_module < 0) {
-    u_t = VectorXd::Zero(num_modules);
-  }
-  else {
-    // If we're using a module as the body frame, provide that module's
-    // gyro measurement in the control signal
-    u_t = VectorXd::Zero(num_modules + 3);
-  }
+static vector<bool> imus_ready(num_modules);
+static vector<bool> joint_cmds_ready(num_modules);
+static bool joints_ready;
 
+class handle_imu {
+  private:
+    size_t i;
+  public:
+    handle_imu(size_t _i) : i(_i) {}
+
+    void operator() (const sensor_msgs::ImuConstPtr& msg) const {
+      Matrix<double, 3, 1> accel;
+      Matrix<double, 3, 1> gyro;
+      accel(0) = msg->linear_acceleration.x;
+      accel(1) = msg->linear_acceleration.y;
+      accel(2) = msg->linear_acceleration.z;
+      gyro(0) = msg->angular_velocity.x;
+      gyro(1) = msg->angular_velocity.y;
+      gyro(2) = msg->angular_velocity.z;
+
+      //accel = rotZ(M_PI/2)*accel;
+      //gyro = rotZ(M_PI/2)*gyro;
+
+      set_alpha(z_t, accel, i, num_modules);
+      set_gamma(z_t, gyro, i, num_modules);
+
+      if (i == body_frame_module - 1) {
+        u_t.tail(3) = gyro;
+      }
+
+      imus_ready[i] = true;
+    }
+};
+
+class handle_joint_command {
+  private:
+    size_t i;
+  public:
+    handle_joint_command(size_t _i) : i(_i) {}
+
+    void operator() (const control_msgs::JointControllerStateConstPtr& msg) const {
+      double t = msg->header.stamp.toSec();
+      if (!joint_cmds_ready[i]) {
+        joint_cmds_ready[i] = true;
+      } else {
+        u_t(i) = (msg->set_point - prev_cmd[i])/(t - prev_cmd_times[i]);
+      }
+      prev_cmd[i] = msg->set_point;
+      prev_cmd_times[i] = t;
+    }
+};
+
+void handle_joints(sensor_msgs::JointState msg) {
   for (size_t i = 0; i < num_modules; i++) {
     double theta = msg.position[i];
-    if (i == 1) theta += 0.26;
-
     set_phi(z_t, i, theta);
-    
-    Vector3d alpha(msg.accelerometer[i].x, msg.accelerometer[i].y, msg.accelerometer[i].z);
-    set_alpha(z_t, alpha, i, num_modules);
-
-    Vector3d gamma(msg.gyro[i].x, msg.gyro[i].y, msg.gyro[i].z);
-    set_gamma(z_t, gamma, i, num_modules);
-
-    if (i == body_frame_module - 1) {
-      u_t.tail(3) = gamma;
-    }
-
-    double command = msg.position_command[i];
-    if (i == 1) command += 0.26;
-    if (first) {
-      u_t(i) = 0;
-    } else {
-      u_t(i) = (command - prev_cmd[i])/dt;
-    }
-    prev_cmd[i] = command;
   }
-
-  if (first) {
-    ekf.initialize(num_modules, body_frame_module, z_t);
-    for (size_t row = 0; row < 6; row++) {
-      for (size_t col = 0; col < 6; col++) {
-        head_pose.pose.covariance[6*row + col] = 0;
-      }
-    }
-    first = false;
-  }
-
-  ekf.predict(u_t, dt);
-  ekf.correct(z_t);   
+  joints_ready = true;
 }
 
 int main(int argc, char **argv) {
@@ -142,6 +137,12 @@ int main(int argc, char **argv) {
     ekf.R.block(0, 0, num_modules, num_modules) /= 100;
   }
 
+  if (body_frame_module < 0) {
+    u_t = VectorXd::Zero(num_modules);
+  } else {
+    u_t = VectorXd::Zero(num_modules + 3);
+  }
+
   // Initialize pose messages
   head_frame.header.frame_id = "body_frame";
   head_frame.child_frame_id = "link0";
@@ -153,52 +154,52 @@ int main(int argc, char **argv) {
   body_frame.transform.translation.y = 0;
   body_frame.transform.translation.z = 0;
 
-  /*
-  // Initialize group using hebiros node
-  ros::ServiceClient add_group_client = n.serviceClient<AddGroupFromNamesSrv>("hebiros/add_group_from_names");
-  AddGroupFromNamesSrv add_group_srv;
-  add_group_srv.request.group_name = "RUSNAKE";
-  add_group_srv.request.names = {"RUSnake Module #114",
-        "RUSnake Module #113",
-        "RUSnake Module #112",
-        "RUSnake Module #111",
-        "RUSnake Module #110",
-        "RUSnake Module #109",
-        "RUSnake Module #101",
-        "RUSnake Module #107",
-        "RUSnake Module #106",
-        "RUSnake Module #105",
-        "RUSnake Module #104",
-        "RUSnake Module #103"
-};
-  add_group_srv.request.families = {"*"};
-  // Block until group is created
-  if (!add_group_client.call(add_group_srv)) {
-    cout << "Lookup of RUSNAKE failed.\n";  
-    exit(1);
-  } 
-  
-  // Set feedback frequency
-  ros::ServiceClient set_freq_client = n.serviceClient<SetFeedbackFrequencySrv>("hebiros/set_feedback_frequency");
-  SetFeedbackFrequencySrv set_freq_srv;
-  set_freq_srv.request.feedback_frequency = feedback_freq;
-  set_freq_client.call(set_freq_srv);
-  */
+  joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 1);
+  pose_pub = n.advertise<geometry_msgs::PoseWithCovarianceStamped>("/reusnake/head_pose", 2);
 
-  joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 5);
-  /*
-  meas_pub = n.advertise<hebiros::FeedbackMsg>("/reusnake/measurement_model", 100);
-  head_imu_pub = n.advertise<sensor_msgs::Imu>("/reusnake/head_imu", 100);
-  */
-  pose_pub = n.advertise<geometry_msgs::PoseWithCovarianceStamped>("/reusnake/head_pose", 5);
+  vector<ros::Subscriber> imu_subs;
+  vector<ros::Subscriber> cmd_subs;
+  ros::Subscriber joint_sub = n.subscribe<sensor_msgs::JointState>("/snake/joint_states", 1, handle_joints); 
+  for (size_t i = 0; i < num_modules; i++) {
+    if (i + 1 < 10) {
+      imu_subs.push_back(n.subscribe<sensor_msgs::Imu>("/snake/sensors/SA00" + to_string(i + 1) + "__MoJo/imu", 1, handle_imu(i)));
+    } else {
+      imu_subs.push_back(n.subscribe<sensor_msgs::Imu>("/snake/sensors/SA0" + to_string(i + 1) + "__MoJo/imu", 1, handle_imu(i)));
+    }
 
-  ros::Subscriber feedback_sub;
-  feedback_sub = n.subscribe("/hebiros/RUSNAKE/feedback", 5, handle_feedback);
+    if (i < 10) { 
+      cmd_subs.push_back(n.subscribe<control_msgs::JointControllerState>("/snake/S_0" + to_string(i) + "_eff_pos_controller/state", 1, handle_joint_command(i)));
+    } else { 
+      cmd_subs.push_back(n.subscribe<control_msgs::JointControllerState>("/snake/S_" + to_string(i) + "_eff_pos_controller/state", 1, handle_joint_command(i)));
+    }
+
+    imus_ready[i] = false;
+    joint_cmds_ready[i] = false;
+  }
+
+  ros::Publisher meas_pub = n.advertise<hebiros::FeedbackMsg>("/reusnake/meas", 2);
 
   tf2_ros::TransformBroadcaster pose_br;
+  hebiros::FeedbackMsg meas_msg;
+  bool ready = false;
   ros::Rate r(50); 
   while (ros::ok()) {
-    if (!first) {
+    if (!ready) {
+      ready = true;
+      for (size_t i = 0; i < num_modules; i++) {
+        if (!joints_ready || !imus_ready[i] || !joint_cmds_ready[i]) {
+          ready = false;
+          break;
+        }
+      }
+      if (ready) {
+        ekf.initialize(num_modules, body_frame_module, z_t);
+      }
+    }
+    if (ready) {
+      ekf.predict(u_t, dt);
+      //ekf.correct(z_t);   
+
       vector<double> angles;
       for (size_t i = 0; i < num_modules; i++) { 
         double theta = get_theta(ekf.x_t, i);
@@ -206,18 +207,17 @@ int main(int argc, char **argv) {
         double theta_dot = get_theta_dot(ekf.x_t, i, num_modules);
         if (joint_state.position.size() <= i) { 
           joint_state.position.push_back(theta);
-          joint_state.velocity.push_back(theta_dot);
         } else {
           joint_state.position[i] = theta;
-          joint_state.velocity[i] = theta_dot;
         }
       }
       Vector4d q_t = get_q(ekf.x_t);
 
       // Filter estimates body frame orientation. Now calculate head orientation
-      transformArray transforms = makeUnifiedSnake(angles);
+      transformArray transforms = makeSEASnake(angles);
       Matrix4d vc = getSnakeVirtualChassis(transforms);
       makeVirtualChassisConsistent(ekf.vc, vc);
+      ekf.vc = vc;
 
       // Transformation of head frame wrt body frame
       Matrix4d T_head_body;
@@ -278,22 +278,6 @@ int main(int argc, char **argv) {
         }
       }
 
-      /*
-      // Calculate the expected imu measurement from the head
-      Vector3d head_accel;
-      Vector3d head_gyro;
-      get_head_kinematics(head_accel, head_gyro, ekf.x_t, num_modules, dt,
-                          body_frame_module, ekf.vc);
-
-      head_imu.linear_acceleration.x = head_accel(0);
-      head_imu.linear_acceleration.y = head_accel(1);
-      head_imu.linear_acceleration.z = head_accel(2);
-      
-      head_imu.angular_velocity.x = head_gyro(0);
-      head_imu.angular_velocity.y = head_gyro(1);
-      head_imu.angular_velocity.z = head_gyro(2);
-      */
-
       head_pose.header.stamp = ros::Time::now();
       pose_pub.publish(head_pose);
 
@@ -304,31 +288,22 @@ int main(int argc, char **argv) {
       joint_state.header.stamp = head_frame.header.stamp;
       joint_pub.publish(joint_state);
 
-      /*
-      // Publish predicted measurement
-      hebiros::FeedbackMsg measurement;
       for (size_t i = 0; i < num_modules; i++) {
-        Vector3d acc_vec = get_alpha(ekf.h_t, i, num_modules);
+        geometry_msgs::Vector3 acc;
+        acc.x = z_t(num_modules + 3*i);
+        acc.y = z_t(num_modules + 3*i + 1);
+        acc.z = z_t(num_modules + 3*i + 2);
 
-        geometry_msgs::Vector3 acc_vec_ros;
-        acc_vec_ros.x = acc_vec(0);
-        acc_vec_ros.y = acc_vec(1);
-        acc_vec_ros.z = acc_vec(2);
-        measurement.accelerometer.push_back(acc_vec_ros);
-        
-        Vector3d gyro_vec = get_gamma(ekf.h_t, i, num_modules);
-
-        geometry_msgs::Vector3 gyro_vec_ros;
-        gyro_vec_ros.x = gyro_vec(0);
-        gyro_vec_ros.y = gyro_vec(1);
-        gyro_vec_ros.z = gyro_vec(2);
-        measurement.gyro.push_back(gyro_vec_ros);
+        if (meas_msg.accelerometer.size() < num_modules) {
+          meas_msg.accelerometer.push_back(acc);
+        }
+        else {
+          meas_msg.accelerometer[i].x = acc.x;
+          meas_msg.accelerometer[i].y = acc.y;
+          meas_msg.accelerometer[i].z = acc.z;
+        }
       }
-      meas_pub.publish(measurement);
-
-      head_imu.header.stamp = ros::Time::now();
-      head_imu_pub.publish(head_imu);
-      */
+      meas_pub.publish(meas_msg);
     }
     
     r.sleep();

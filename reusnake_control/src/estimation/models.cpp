@@ -21,12 +21,12 @@ static const double tau = 21;
 static const double lambda = 0.25;
 
 // Gravitational field
-static const double g = 9.7;
+static const double g = -9.8;
 
 // Perturbation used for numerical derivatives
 static const double epsilon = 0.000001;
 
-static const double module_rad = 0.0254; // TODO: change
+static const double module_rad = 0.026; 
 static const double zthresh = 0.0075; // for motion model
 
 // Get state transition matrix for quaternion
@@ -62,12 +62,12 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, const VectorXd& x_t
   }
 
   // Compute snake kinematics (module frames with respect to head frame)
-  transformArray transforms = makeUnifiedSnake(angles);
+  transformArray transforms = makeSEASnake(angles);
 
   // We need the transforms at the previous and next time step
   // for the gyro prediction
-  transformArray prev_transforms = makeUnifiedSnake(prev_angles);
-  transformArray next_transforms = makeUnifiedSnake(next_angles);
+  transformArray prev_transforms = makeSEASnake(prev_angles);
+  transformArray next_transforms = makeSEASnake(next_angles);
 
   Matrix3d body_R;
   Matrix3d prev_body_R;
@@ -157,8 +157,8 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, const VectorXd& x_t
 Vector3d get_body_displacement(const vector<double>& angles, const vector<double>& prev_angles,
                                const Matrix3d& R_vc_world, 
                                size_t num_modules, const Matrix4d& prev_vc) {
-  transformArray transforms = makeUnifiedSnake(angles);
-  transformArray prev_transforms = makeUnifiedSnake(prev_angles);
+  transformArray transforms = makeSEASnake(angles);
+  transformArray prev_transforms = makeSEASnake(prev_angles);
 
   // Compute virtual chassis
   Matrix4d body = getSnakeVirtualChassis(transforms);
@@ -257,14 +257,6 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
     angles[i] = cur_theta;
     prev_angles[i] = prev_angle;
   
-    /*
-    if (cur_angle > M_PI/2 && prev_angle < -M_PI/2) {
-      prev_angle = prev_angle + 2*M_PI;
-    } else if (cur_angle < -M_PI/2 && prev_angle > M_PI/2) {
-      cur_angle = cur_angle + 2*M_PI;
-    }
-    */
-    
     set_theta_dot(x_t, i,
                   lambda*u_t(i) + (1 - lambda)*prev_theta_dot,
                   num_modules);
@@ -272,7 +264,8 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
 
   if (body_frame_module < 0) {
     Vector3d p_t_1 = get_p(x_t_1);
-    Quaterniond q(q_t(0), q_t(1), q_t(2), q_t(3));
+    Quaterniond q(q_t_1(0), q_t_1(1), q_t_1(2), q_t_1(3));
+
     Vector3d p_t = p_t_1 + get_body_displacement(angles, prev_angles, q.toRotationMatrix(),
                                                  num_modules, prev_vc);
     set_p(x_t, p_t);
@@ -299,12 +292,12 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules,
   }
 
   // Compute snake kinematics (module frames with respect to head frame)
-  transformArray transforms = makeUnifiedSnake(angles);
+  transformArray transforms = makeSEASnake(angles);
 
   // We need the transforms at the previous and next time step
   // for the gyro prediction
-  transformArray prev_transforms = makeUnifiedSnake(prev_angles);
-  transformArray next_transforms = makeUnifiedSnake(next_angles);
+  transformArray prev_transforms = makeSEASnake(prev_angles);
+  transformArray next_transforms = makeSEASnake(next_angles);
 
   // Body frame transformations with respect to head
   Matrix4d body;
@@ -475,7 +468,7 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
         Vector3d disp_plus = get_body_displacement(angles_plus, prev_angles_plus, R,
                                                    num_modules, prev_vc);
         Vector3d disp_minus = get_body_displacement(angles_minus, prev_angles_minus, R,
-                                                   num_modules, prev_vc);
+                                                    num_modules, prev_vc);
 
         F_t.block<3, 1>(0, 12 + i) = (disp_plus - disp_minus)/(2*epsilon);
       } else {
@@ -602,7 +595,7 @@ Matrix4d init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules,
   
   // Use the body frame module's initial orientation using its accelerometer
   // (or the module 1 accelerometer if we're using the virtual chassis)
-  transformArray transforms = makeUnifiedSnake(angles);
+  transformArray transforms = makeSEASnake(angles);
 
   Vector3d a_grav(0, 0, g); // gravitational acceleration in world frame
 
@@ -616,6 +609,7 @@ Matrix4d init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules,
     body = transforms[body_frame_module];
     a_grav_body = get_alpha(z_t, body_frame_module - 1, num_modules);
   }
+  cout << a_grav_body << endl;
 
   // Rotation matrix representing body frame in world frame
   Matrix3d R = Quaterniond::FromTwoVectors(a_grav_body, a_grav).toRotationMatrix(); 

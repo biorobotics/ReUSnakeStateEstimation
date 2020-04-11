@@ -170,11 +170,8 @@ transformArray makeUnifiedSnakeInFrame(vector<double> angles, int moduleFrame)
 /// \param joint The number of the joint (to account for spiraling).
 Matrix4d getSEASnakeTransform(double angle, int joint)
 {
-  // Snake dimensions:
-  // (.0639 meters is 2.516 inches)
-  // double moduleLength = 2.516;
-  double inputToJoint = 1.441;
-  double jointToOutput = 1.075;
+  double inputToJoint = -0.0366;
+  double jointToOutput = -0.0273;
 
   // Build translation transform to move back along the snake
   Matrix4d translateIn = Matrix4d::Identity();
@@ -182,18 +179,10 @@ Matrix4d getSEASnakeTransform(double angle, int joint)
   translateIn(2,3) = -inputToJoint;
   translateOut(2,3) = -jointToOutput;
 
-  // Compute the rotation matrix, depending on rotation about the x or y
-  // angle:
+  // Compute the rotation matrix
   Matrix4d R = Matrix4d::Identity();
   
-  // Rotate by the negative angle, because we are going head to tail.
-  angle = -angle;
-
-  if (joint%2 == 0) { // Even equals X, Uneven Y
-    R.block<3,3>(0,0) = rotX(angle);
-  } else {
-    R.block<3,3>(0,0) = rotY(angle);
-  }
+  R.block<3,3>(0,0) = rotZ(-M_PI/2)*rotY(angle);
 
   // Translate, rotate, then translate to find entire transform.
   return translateOut * R * translateIn;
