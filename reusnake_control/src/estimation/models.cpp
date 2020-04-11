@@ -21,7 +21,7 @@ static const double tau = 21;
 static const double lambda = 0.25;
 
 // Gravitational field
-static const double g = 9.8;
+static const double g = 9.7;
 
 // Perturbation used for numerical derivatives
 static const double epsilon = 0.000001;
@@ -30,13 +30,13 @@ static const double module_rad = 0.0254; // TODO: change
 static const double zthresh = 0.0075; // for motion model
 
 // Get state transition matrix for quaternion
-void quaternion_stm(Matrix4d& stm, Vector3d& w_t_1, double dt) {
+void quaternion_stm(Matrix4d& stm, const Vector3d& w_t, double dt) {
   Matrix4d omega; // skew-symmetric matrix used in orientation update
-  omega <<            0, -w_t_1(0), -w_t_1(1), -w_t_1(2),
-               w_t_1(0),         0,  w_t_1(2), -w_t_1(1),
-               w_t_1(1), -w_t_1(2),         0,  w_t_1(0),
-               w_t_1(2),  w_t_1(1), -w_t_1(0),         0;
-  double wmag = w_t_1.norm(); // magnitude of angular velocity
+  omega <<            0, -w_t(0), -w_t(1), -w_t(2),
+               w_t(0),         0,  w_t(2), -w_t(1),
+               w_t(1), -w_t(2),         0,  w_t(0),
+               w_t(2),  w_t(1), -w_t(0),         0;
+  double wmag = w_t.norm(); // magnitude of angular velocity
   double s = 0.5*dt*wmag;
 
   if (s == 0) {
@@ -140,9 +140,12 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, const VectorXd& x_t
   Matrix3d head_R = body_R.transpose();
   Matrix3d prev_head_R = prev_body_R.transpose();
 
-  Matrix3d velocity_matrix = head_R*prev_head_R.transpose()/dt;
+  Matrix3d velocity_matrix = prev_head_R*head_R.transpose()/dt;
   Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));
-  w_internal.setZero();
+
+  if (body_frame < 0) {
+    w_internal.setZero();
+  }
 
   // Compute angular velocity of body frame in module frame
   Vector3d w_t = get_w(x_t);
@@ -376,7 +379,7 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules,
     Matrix3d R = transforms[i + 1].block<3, 3>(0, 0);
     Matrix3d prev_R = prev_transforms[i + 1].block<3, 3>(0, 0);
 
-    Matrix3d velocity_matrix = R*prev_R.transpose()/dt;
+    Matrix3d velocity_matrix = prev_R.transpose()*R/dt;
     Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));
 
     if (body_frame_module < 0) {
@@ -384,7 +387,6 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules,
     }
     
     // Compute angular velocity of body frame in module frame
-    Vector3d w_t = get_w(x_t);
     Vector3d w_t_module = R_inv*w_t;
 
     // Populate gyro values
