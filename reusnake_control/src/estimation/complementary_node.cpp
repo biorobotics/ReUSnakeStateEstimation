@@ -45,6 +45,12 @@ void quaternion_stm(Matrix4d& stm, Vector3d& w_t, double dt) {
 }
 
 void handle_feedback(FeedbackMsg msg) {
+  vector<double> angles(1);
+  angles.push_back(msg.position[0]);
+  transformArray transforms = makeUnifiedSnake(angles);
+  // Orientation of module 1 wrt head
+  Matrix3d R = transforms[1].block(0, 0, 3, 3);
+
   if (first) {
     Vector3d a_grav_module(msg.accelerometer[0].x, msg.accelerometer[0].y, msg.accelerometer[0].z); // module 1 accelerometer value
     Vector3d a_grav(0, 0, 9.8); // gravitational acceleration in world frame
@@ -52,10 +58,12 @@ void handle_feedback(FeedbackMsg msg) {
     q_m1.setFromTwoVectors(a_grav_module, a_grav);
 
     // Set yaw to 0
-    Vector3d ypr = q_m1.toRotationMatrix().eulerAngles(2, 1, 0);
-    Matrix3d new_rot = rotZ(0)*rotY(ypr(1))*rotX(ypr(2));
+    Matrix3d head_R = q_m1*R.transpose();
+    Vector3d ypr = head_R.eulerAngles(2, 1, 0);
+    Matrix3d new_head_R = rotY(ypr(1))*rotX(ypr(2));
+    Matrix3d new_R = new_head_R*R;
 
-    Quaterniond new_q(new_rot);
+    Quaterniond new_q(new_R);
 
     q_t(0) = new_q.w();
     q_t(1) = new_q.x();
@@ -94,12 +102,6 @@ void handle_feedback(FeedbackMsg msg) {
 
   q_t = q_t/q_t.norm();
   
-  // Filter estimates module 1 orientation. Now calculate head orientation
-  vector<double> angles(1);
-  angles.push_back(msg.position[0]);
-  transformArray transforms = makeUnifiedSnake(angles);
-  // Orientation of module 1 wrt head
-  Matrix3d R = transforms[1].block(0, 0, 3, 3);
   Quaterniond q_m1_head(R); 
 
   Quaterniond q_head = q_m1_world*q_m1_head.conjugate();
@@ -118,7 +120,7 @@ int main(int argc, char **argv) {
   // Initialize pose message 
   pose.header.stamp = ros::Time::now();
   pose.header.frame_id = "world";
-  pose.child_frame_id = "link0";
+  pose.child_frame_id = "complementary";
   pose.transform.translation.x = 1;
   pose.transform.translation.y = 0;
   pose.transform.translation.z = 0;

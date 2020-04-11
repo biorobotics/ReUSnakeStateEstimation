@@ -155,7 +155,7 @@ void EKF::correct(const VectorXd& z_t) {
   detect_outliers(R, inn_cov, sensor_diff, sensorlen, num_modules);
 
   // Compute new innovation covariance
-  //inn_cov = H_t*SHT + R;
+  inn_cov = H_t*SHT + R;
 
   LLT<MatrixXd> inn_cov_llt = inn_cov.llt();
 
