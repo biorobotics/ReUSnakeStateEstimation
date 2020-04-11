@@ -143,7 +143,7 @@ void get_head_kinematics(Vector3d& accel, Vector3d& ang_vel, const VectorXd& x_t
   Matrix3d velocity_matrix = prev_head_R*head_R.transpose()/dt;
   Vector3d w_internal(velocity_matrix(2, 1), velocity_matrix(0, 2), velocity_matrix(1, 0));
 
-  if (body_frame < 0) {
+  if (body_frame_module < 0) {
     w_internal.setZero();
   }
 
