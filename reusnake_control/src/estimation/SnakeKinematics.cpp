@@ -182,7 +182,7 @@ Matrix4d getSEASnakeTransform(double angle, int joint)
   // Compute the rotation matrix
   Matrix4d R = Matrix4d::Identity();
   
-  R.block<3,3>(0,0) = rotZ(-M_PI/2)*rotY(-angle);
+  R.block<3,3>(0,0) = rotZ(-M_PI/2)*rotY(angle);
 
   // Translate, rotate, then translate to find entire transform.
   return translateOut * R * translateIn;

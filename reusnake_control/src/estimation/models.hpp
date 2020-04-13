@@ -54,7 +54,7 @@ Vector3d get_body_displacement(const vector<double>& angles, const vector<double
  */
 void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
        double dt, size_t num_modules, short body_frame_module,
-       const Matrix4d& prev_vc);
+       const Matrix4d& prev_vc, const vector<double>& angles);
 
 /*
  * h: predicts sensor measurements given current state (measurement model)
@@ -72,7 +72,7 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
  * consistent with the previous one. Otherwise, undefined behavior
  */
 Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules,
-       short body_frame_module, const Matrix4d& prev_vc);
+       short body_frame_module, const Matrix4d& prev_vc, const vector<double>& angles);
 
 /*
 * df: computes Jacobian of f
@@ -84,7 +84,8 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules,
 * body_frame_module: module to use as body frame. If -1, use virtual chassis
 */
 void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
-        size_t num_modules, short body_frame_module, Matrix4d& prev_vc);
+        size_t num_modules, short body_frame_module, Matrix4d& prev_vc,
+        const vector<double>& angles);
 
 /*
 * dh: computes Jacobian of h
@@ -96,7 +97,8 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
 * prev_vc: the previous virtual chassis, for correction
 */
 void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules,
-        short body_frame_module, const Matrix4d& prev_vc = Matrix4d::Identity());
+        short body_frame_module, const Matrix4d& prev_vc,
+        const vector<double>& angles);
 
 /*
  * state_length: computes the length of the state vector assumed by this
@@ -107,7 +109,7 @@ void dh(MatrixXd& H_t, const VectorXd& x_t, double dt, size_t num_modules,
  * length of state vector that this model uses
  */
 inline size_t state_length(size_t num_modules) {
-  return 13 + 2*num_modules;
+  return 13 + num_modules;
 }
 
 /*
@@ -119,7 +121,7 @@ inline size_t state_length(size_t num_modules) {
  * length of sensor vector that this model uses
  */
 inline size_t sensor_length(size_t num_modules) {
-  return 7*num_modules;
+  return 6*num_modules;
 }
 
 /*
@@ -133,7 +135,7 @@ inline size_t sensor_length(size_t num_modules) {
  * virtual chassis if body_frame_module == -1, undefined otherwise
  */
 Matrix4d init_state(VectorXd& x_t, const VectorXd& z_t, size_t num_modules,
-                    short body_frame_module);
+                    short body_frame_module, const vector<double>& angles);
 
 // Helper functions to manipulate information from state vector
 
@@ -177,59 +179,36 @@ inline void set_a(VectorXd& x_t, const Vector3d& a_t) {
   x_t.segment(10, 3) = a_t;
 }
 
-// Get ith joint angle
-inline double get_theta(const VectorXd& x_t, size_t i) {
+// Get ith joint velocity
+inline double get_theta_dot(const VectorXd& x_t, size_t i, size_t num_modules) {
   return x_t(13 + i);
 }
 
-// Set ith joint angle
-inline void set_theta(VectorXd& x_t, size_t i, double theta) {
-  x_t(13 + i) = theta;
-}
-
-// Get ith joint velocity
-inline double get_theta_dot(const VectorXd& x_t, size_t i, size_t num_modules) {
-  return x_t(13 + num_modules + i);
-}
-
 // Set ith joint velocity
-inline void set_theta_dot(VectorXd& x_t, size_t i, double theta_dot,
-                          size_t num_modules) {
-  x_t(13 + num_modules + i) = theta_dot;
+inline void set_theta_dot(VectorXd& x_t, size_t i, double theta_dot) {
+  x_t(13 + i) = theta_dot;
 }
 
 // Helper functions to manipulate information from sensor vector
 
-// Get ith joint angle
-inline double get_phi(const VectorXd& z_t, size_t i) {
-  return z_t(i);
-}
-
-// Set ith joint angle
-inline void set_phi(VectorXd& z_t, size_t i, double phi) {
-  z_t(i) = phi;
-}
-
 // Get ith accelerometer vector
-inline Vector3d get_alpha(const VectorXd& z_t, size_t i,
-                      size_t num_modules) {
-  return z_t.segment(num_modules + 3*i, 3);
+inline Vector3d get_alpha(const VectorXd& z_t, size_t i) {
+  return z_t.segment(3*i, 3);
 }
 
 // Set ith accelerometer vector
-inline void set_alpha(VectorXd& z_t, const VectorXd& alpha_t, size_t i,
-                      size_t num_modules) {
-  z_t.segment(num_modules + 3*i, 3) = alpha_t;
+inline void set_alpha(VectorXd& z_t, const VectorXd& alpha_t, size_t i) {
+  z_t.segment(3*i, 3) = alpha_t;
 }
 
 // Get ith gyro vector
 inline Vector3d get_gamma(const VectorXd& z_t, size_t i,
                           size_t num_modules) {
-  return z_t.segment(4*num_modules + 3*i, 3);
+  return z_t.segment(3*num_modules + 3*i, 3);
 }
 
 // Set ith gyro vector
 inline void set_gamma(VectorXd& z_t, const Vector3d& gamma_t, size_t i,
                       size_t num_modules) {
-  z_t.segment(4*num_modules + 3*i, 3) = gamma_t;
+  z_t.segment(3*num_modules + 3*i, 3) = gamma_t;
 }

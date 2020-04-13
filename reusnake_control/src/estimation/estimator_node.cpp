@@ -17,13 +17,15 @@
 
 using namespace Eigen;
 
-static const size_t num_modules = 16;
+static const size_t num_modules = 12;
 static const double dt = 1.0/50;
 
 size_t statelen;
 size_t sensorlen;
 
 static VectorXd z_t;
+static VectorXd prev_joints(num_modules);
+static double prev_joint_time;
 static VectorXd u_t;
 static EKF ekf;
 static ros::Publisher joint_pub;
@@ -34,14 +36,9 @@ static geometry_msgs::TransformStamped body_frame;
 static ros::Publisher pose_pub;
 static geometry_msgs::PoseWithCovarianceStamped head_pose;
 
-// Previous position command
-static vector<double> prev_cmd(num_modules);
-static vector<double> prev_cmd_times(num_modules);
-
 static short body_frame_module;
 
 static vector<bool> imus_ready(num_modules);
-static vector<bool> joint_cmds_ready(num_modules);
 static bool joints_ready;
 
 class handle_imu {
@@ -60,10 +57,7 @@ class handle_imu {
       gyro(1) = msg->angular_velocity.y;
       gyro(2) = msg->angular_velocity.z;
 
-      //accel = rotZ(M_PI/2)*accel;
-      //gyro = rotZ(M_PI/2)*gyro;
-
-      set_alpha(z_t, accel, i, num_modules);
+      set_alpha(z_t, accel, i);
       set_gamma(z_t, gyro, i, num_modules);
 
       if (i == body_frame_module - 1) {
@@ -74,30 +68,23 @@ class handle_imu {
     }
 };
 
-class handle_joint_command {
-  private:
-    size_t i;
-  public:
-    handle_joint_command(size_t _i) : i(_i) {}
-
-    void operator() (const control_msgs::JointControllerStateConstPtr& msg) const {
-      double t = msg->header.stamp.toSec();
-      if (!joint_cmds_ready[i]) {
-        joint_cmds_ready[i] = true;
-      } else {
-        u_t(i) = (msg->set_point - prev_cmd[i])/(t - prev_cmd_times[i]);
-      }
-      prev_cmd[i] = msg->set_point;
-      prev_cmd_times[i] = t;
-    }
-};
-
 void handle_joints(sensor_msgs::JointState msg) {
+  double time = msg.header.stamp.toSec();
+  VectorXd joints(num_modules);
   for (size_t i = 0; i < num_modules; i++) {
-    double theta = msg.position[i];
-    set_phi(z_t, i, theta);
+    joints(i) = msg.position[i];
+    if (ekf.angles.size() > 0) {
+      ekf.angles[i] = joints(i);
+    }
   }
-  joints_ready = true;
+  if (!joints_ready) {
+    u_t.segment(0, num_modules).setZero();
+    joints_ready = true;
+  } else {
+    u_t.segment(0, num_modules) = (joints - prev_joints)/(time - prev_joint_time);
+  }
+  prev_joint_time = time;
+  prev_joints = joints;
 }
 
 int main(int argc, char **argv) {
@@ -118,12 +105,10 @@ int main(int argc, char **argv) {
   ekf.Q.block<3, 3>(0, 0) *= 1000;
   ekf.Q.block<3, 3>(9, 9) *= 100000;
   ekf.Q.block<3, 3>(6, 6) *= 100;
-  ekf.Q.block(12 + num_modules, 12 + num_modules, num_modules, num_modules) *= 100;
+  ekf.Q.block(12, 12, num_modules, num_modules) *= 100;
 
-  ekf.R = MatrixXd::Identity(sensorlen, sensorlen);
-  ekf.R.block(0, 0, num_modules, num_modules) /= 100;
-  ekf.R.block(num_modules, num_modules, 3*num_modules, 3*num_modules) /= 20;
-  ekf.R.block(4*num_modules, 4*num_modules, 3*num_modules, 3*num_modules) /= 2;
+  ekf.R = 0.5*MatrixXd::Identity(sensorlen, sensorlen);
+  ekf.R.block(0, 0, 3*num_modules, 3*num_modules) /= 50;
 
   ekf.S_t = 0.001*MatrixXd::Identity(statelen - 1, statelen - 1);
 
@@ -133,8 +118,7 @@ int main(int argc, char **argv) {
       ekf.Q.block<3, 3>(3, 3) *= 100;
       ekf.Q.block<3, 3>(6, 6) *= 100;
     }
-    ekf.Q.block(12 + num_modules, 12 + num_modules, num_modules, num_modules) *= 10;
-    ekf.R.block(0, 0, num_modules, num_modules) /= 100;
+    ekf.Q.block(12, 12, num_modules, num_modules) *= 10;
   }
 
   if (body_frame_module < 0) {
@@ -158,7 +142,6 @@ int main(int argc, char **argv) {
   pose_pub = n.advertise<geometry_msgs::PoseWithCovarianceStamped>("/reusnake/head_pose", 2);
 
   vector<ros::Subscriber> imu_subs;
-  vector<ros::Subscriber> cmd_subs;
   ros::Subscriber joint_sub = n.subscribe<sensor_msgs::JointState>("/snake/joint_states", 1, handle_joints); 
   for (size_t i = 0; i < num_modules; i++) {
     if (i + 1 < 10) {
@@ -166,15 +149,7 @@ int main(int argc, char **argv) {
     } else {
       imu_subs.push_back(n.subscribe<sensor_msgs::Imu>("/snake/sensors/SA0" + to_string(i + 1) + "__MoJo/imu", 3, handle_imu(i)));
     }
-
-    if (i < 10) { 
-      cmd_subs.push_back(n.subscribe<control_msgs::JointControllerState>("/snake/S_0" + to_string(i) + "_eff_pos_controller/state", 3, handle_joint_command(i)));
-    } else { 
-      cmd_subs.push_back(n.subscribe<control_msgs::JointControllerState>("/snake/S_" + to_string(i) + "_eff_pos_controller/state", 3, handle_joint_command(i)));
-    }
-
     imus_ready[i] = false;
-    joint_cmds_ready[i] = false;
   }
 
   ros::Publisher meas_pub = n.advertise<hebiros::FeedbackMsg>("/reusnake/meas", 2);
@@ -187,34 +162,30 @@ int main(int argc, char **argv) {
     if (!ready) {
       ready = true;
       for (size_t i = 0; i < num_modules; i++) {
-        if (!joints_ready || !imus_ready[i] || !joint_cmds_ready[i]) {
+        if (!joints_ready || !imus_ready[i]) {
           ready = false;
           break;
         }
       }
       if (ready) {
-        ekf.initialize(num_modules, body_frame_module, z_t);
+        ekf.initialize(num_modules, body_frame_module, z_t, prev_joints);
       }
     }
     if (ready) {
       ekf.predict(u_t, dt);
-      //ekf.correct(z_t);   
+      ekf.correct(z_t);   
 
-      vector<double> angles;
       for (size_t i = 0; i < num_modules; i++) { 
-        double theta = get_theta(ekf.x_t, i);
-        angles.push_back(theta);
-        double theta_dot = get_theta_dot(ekf.x_t, i, num_modules);
         if (joint_state.position.size() <= i) { 
-          joint_state.position.push_back(theta);
+          joint_state.position.push_back(ekf.angles[i]);
         } else {
-          joint_state.position[i] = theta;
+          joint_state.position[i] = ekf.angles[i];
         }
       }
       Vector4d q_t = get_q(ekf.x_t);
 
       // Filter estimates body frame orientation. Now calculate head orientation
-      transformArray transforms = makeSEASnake(angles);
+      transformArray transforms = makeSEASnake(ekf.angles);
       Matrix4d vc = getSnakeVirtualChassis(transforms);
       makeVirtualChassisConsistent(ekf.vc, vc);
       ekf.vc = vc;
