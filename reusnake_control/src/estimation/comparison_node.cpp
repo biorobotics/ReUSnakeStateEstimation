@@ -130,7 +130,7 @@ int main(int argc, char **argv) {
       gazebo_tf.transform.rotation.z = gazebo_rot.z();
       gazebo_br.sendTransform(gazebo_tf);
       tf::StampedTransform estimator_tf;
-      tf_listener.lookupTransform("link0", "world", ros::Time(0), estimator_tf);
+      tf_listener.lookupTransform("world", "link0", ros::Time(0), estimator_tf);
 
       estimator_rot.w() = estimator_tf.getRotation().w();
       estimator_rot.x() = estimator_tf.getRotation().x();
