@@ -112,6 +112,11 @@ int main(int argc, char **argv) {
 
   ekf.S_t = 0.001*MatrixXd::Identity(statelen - 1, statelen - 1);
 
+  if (gait.compare("sidewind") == 0) {
+    ekf.Q.block<3, 3>(3, 3) *= 100;
+    ekf.R = 0.001*MatrixXd::Identity(sensorlen, sensorlen);
+  }
+
   // Adjust covariances for virtual chassis estimator
   if (body_frame_module < 0) {
     if (gait.compare("roll") == 0) {
@@ -152,10 +157,7 @@ int main(int argc, char **argv) {
     imus_ready[i] = false;
   }
 
-  ros::Publisher meas_pub = n.advertise<hebiros::FeedbackMsg>("/reusnake/meas", 2);
-
   tf2_ros::TransformBroadcaster pose_br;
-  hebiros::FeedbackMsg meas_msg;
   bool ready = false;
   ros::Rate r(50); 
   while (ros::ok()) {
@@ -258,23 +260,6 @@ int main(int argc, char **argv) {
       pose_br.sendTransform(body_frame);
       joint_state.header.stamp = head_frame.header.stamp;
       joint_pub.publish(joint_state);
-
-      for (size_t i = 0; i < num_modules; i++) {
-        geometry_msgs::Vector3 acc;
-        acc.x = z_t(num_modules + 3*i);
-        acc.y = z_t(num_modules + 3*i + 1);
-        acc.z = z_t(num_modules + 3*i + 2);
-
-        if (meas_msg.accelerometer.size() < num_modules) {
-          meas_msg.accelerometer.push_back(acc);
-        }
-        else {
-          meas_msg.accelerometer[i].x = acc.x;
-          meas_msg.accelerometer[i].y = acc.y;
-          meas_msg.accelerometer[i].z = acc.z;
-        }
-      }
-      meas_pub.publish(meas_msg);
     }
     
     r.sleep();

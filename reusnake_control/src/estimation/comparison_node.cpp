@@ -84,6 +84,8 @@ void handle_gazebo(gazebo_msgs::LinkStates msg) {
       gazebo_pos(1) = msg.pose[i].position.y;
       gazebo_pos(2) = msg.pose[i].position.z;
 
+      gazebo_rot = gazebo_rot*rotY(-M_PI/2);
+
       if (first_gazebo) {
         Vector3d gazebo_ypr = gazebo_rot.toRotationMatrix().eulerAngles(2, 1, 0);
         gazebo_unyaw = rotZ(-gazebo_ypr(0));
