@@ -73,11 +73,11 @@ int main(int argc, char **argv) {
       tf::StampedTransform vins;
       tf::StampedTransform estimator;
       tf::StampedTransform complementary;
-      tf_listener.lookupTransform("body", "world",  
+      tf_listener.lookupTransform("world", "body",  
                                   ros::Time(0), vins);
-      tf_listener.lookupTransform("link0", "world",  
+      tf_listener.lookupTransform("world", "link0",  
                                   ros::Time(0), estimator);
-      tf_listener.lookupTransform("complementary", "world",  
+      tf_listener.lookupTransform("world", "complementary",  
                                   ros::Time(0), complementary);
       
       Quaterniond vins_rot;
