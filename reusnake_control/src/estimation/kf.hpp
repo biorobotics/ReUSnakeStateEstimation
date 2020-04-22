@@ -40,7 +40,8 @@ class KF
      * _body_frame_module: module number of body frame, or -1 for virtual chassis
      * z_t: current measurement
      */
-    void initialize(size_t modules, short _body_frame_module, const VectorXd& z_t);
+    void initialize(size_t modules, short _body_frame_module, const VectorXd& z_t,
+                    const VectorXd& joints);
 
     MatrixXd Q; // processs covariance
     MatrixXd R; // measurement covariance
@@ -51,6 +52,8 @@ class KF
     VectorXd h_t; // predicted measurement, for printing mainly
 
     Matrix4d vc; // current virtual chassis
+
+    vector<double> angles;
 
   protected:
     size_t num_modules; //number of modules in snake

@@ -32,13 +32,6 @@ size_t sensorlen;
 static VectorXd z_t;
 static EKF ekf;
 static ros::Publisher joint_pub;
-//static ros::Publisher meas_pub;
-
-// Publish the expected imu measurement if there were an imu on the head
-/*
-static ros::Publisher head_imu_pub; 
-static sensor_msgs::Imu head_imu;
-*/
 
 static sensor_msgs::JointState joint_state;
 static geometry_msgs::TransformStamped head_frame;
@@ -48,8 +41,7 @@ static geometry_msgs::PoseWithCovarianceStamped head_pose;
 
 static bool first = true;
 
-// Previous position command
-static vector<double> prev_cmd(num_modules);
+static VectorXd prev_joints(num_modules);
 
 static short body_frame_module;
 
@@ -69,10 +61,8 @@ void handle_feedback(FeedbackMsg msg) {
     double theta = msg.position[i];
     if (i == 1) theta += 0.26;
 
-    set_phi(z_t, i, theta);
-    
     Vector3d alpha(msg.accelerometer[i].x, msg.accelerometer[i].y, msg.accelerometer[i].z);
-    set_alpha(z_t, alpha, i, num_modules);
+    set_alpha(z_t, alpha, i);
 
     Vector3d gamma(msg.gyro[i].x, msg.gyro[i].y, msg.gyro[i].z);
     set_gamma(z_t, gamma, i, num_modules);
@@ -81,18 +71,17 @@ void handle_feedback(FeedbackMsg msg) {
       u_t.tail(3) = gamma;
     }
 
-    double command = msg.position_command[i];
-    if (i == 1) command += 0.26;
     if (first) {
       u_t(i) = 0;
     } else {
-      u_t(i) = (command - prev_cmd[i])/dt;
+      u_t(i) = (theta - prev_joints(i))/dt;
+      ekf.angles[i] = theta;
     }
-    prev_cmd[i] = command;
+    prev_joints(i) = theta;
   }
 
   if (first) {
-    ekf.initialize(num_modules, body_frame_module, z_t);
+    ekf.initialize(num_modules, body_frame_module, z_t, prev_joints);
     for (size_t row = 0; row < 6; row++) {
       for (size_t col = 0; col < 6; col++) {
         head_pose.pose.covariance[6*row + col] = 0;
@@ -123,23 +112,19 @@ int main(int argc, char **argv) {
   ekf.Q.block<3, 3>(0, 0) *= 1000;
   ekf.Q.block<3, 3>(9, 9) *= 100000;
   ekf.Q.block<3, 3>(6, 6) *= 100;
-  ekf.Q.block(12 + num_modules, 12 + num_modules, num_modules, num_modules) *= 100;
+  ekf.Q.block(12, 12, num_modules, num_modules) *= 100;
 
   ekf.R = MatrixXd::Identity(sensorlen, sensorlen);
-  ekf.R.block(0, 0, num_modules, num_modules) /= 100;
-  ekf.R.block(num_modules, num_modules, 3*num_modules, 3*num_modules) /= 20;
-  ekf.R.block(4*num_modules, 4*num_modules, 3*num_modules, 3*num_modules) /= 2;
+  ekf.R.block(0, 0, 3*num_modules, 3*num_modules) /= 20;
+  ekf.R.block(3*num_modules, 3*num_modules, 3*num_modules, 3*num_modules) /= 2;
 
   ekf.S_t = 0.001*MatrixXd::Identity(statelen - 1, statelen - 1);
 
   // Adjust covariances for virtual chassis estimator
   if (body_frame_module < 0) {
-    if (gait.compare("roll") == 0) {
-      ekf.Q.block<3, 3>(3, 3) *= 100;
-      ekf.Q.block<3, 3>(6, 6) *= 100;
-    }
-    ekf.Q.block(12 + num_modules, 12 + num_modules, num_modules, num_modules) *= 10;
-    ekf.R.block(0, 0, num_modules, num_modules) /= 100;
+    ekf.Q.block<3, 3>(3, 3) *= 100;
+    ekf.Q.block<3, 3>(6, 6) *= 100;
+    ekf.Q.block(12, 12, num_modules, num_modules) *= 10;
   }
 
   // Initialize pose messages
@@ -186,10 +171,6 @@ int main(int argc, char **argv) {
   */
 
   joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 5);
-  /*
-  meas_pub = n.advertise<hebiros::FeedbackMsg>("/reusnake/measurement_model", 100);
-  head_imu_pub = n.advertise<sensor_msgs::Imu>("/reusnake/head_imu", 100);
-  */
   pose_pub = n.advertise<geometry_msgs::PoseWithCovarianceStamped>("/reusnake/head_pose", 5);
 
   ros::Subscriber feedback_sub;
@@ -199,11 +180,9 @@ int main(int argc, char **argv) {
   ros::Rate r(50); 
   while (ros::ok()) {
     if (!first) {
-      vector<double> angles;
       for (size_t i = 0; i < num_modules; i++) { 
-        double theta = get_theta(ekf.x_t, i);
-        angles.push_back(theta);
-        double theta_dot = get_theta_dot(ekf.x_t, i, num_modules);
+        double theta = ekf.angles[i];
+        double theta_dot = get_theta_dot(ekf.x_t, i);
         if (joint_state.position.size() <= i) { 
           joint_state.position.push_back(theta);
           joint_state.velocity.push_back(theta_dot);
@@ -215,7 +194,7 @@ int main(int argc, char **argv) {
       Vector4d q_t = get_q(ekf.x_t);
 
       // Filter estimates body frame orientation. Now calculate head orientation
-      transformArray transforms = makeUnifiedSnake(angles);
+      transformArray transforms = makeUnifiedSnake(ekf.angles);
       Matrix4d vc = getSnakeVirtualChassis(transforms);
       makeVirtualChassisConsistent(ekf.vc, vc);
 
@@ -278,22 +257,6 @@ int main(int argc, char **argv) {
         }
       }
 
-      /*
-      // Calculate the expected imu measurement from the head
-      Vector3d head_accel;
-      Vector3d head_gyro;
-      get_head_kinematics(head_accel, head_gyro, ekf.x_t, num_modules, dt,
-                          body_frame_module, ekf.vc);
-
-      head_imu.linear_acceleration.x = head_accel(0);
-      head_imu.linear_acceleration.y = head_accel(1);
-      head_imu.linear_acceleration.z = head_accel(2);
-      
-      head_imu.angular_velocity.x = head_gyro(0);
-      head_imu.angular_velocity.y = head_gyro(1);
-      head_imu.angular_velocity.z = head_gyro(2);
-      */
-
       head_pose.header.stamp = ros::Time::now();
       pose_pub.publish(head_pose);
 
@@ -303,32 +266,6 @@ int main(int argc, char **argv) {
       pose_br.sendTransform(body_frame);
       joint_state.header.stamp = head_frame.header.stamp;
       joint_pub.publish(joint_state);
-
-      /*
-      // Publish predicted measurement
-      hebiros::FeedbackMsg measurement;
-      for (size_t i = 0; i < num_modules; i++) {
-        Vector3d acc_vec = get_alpha(ekf.h_t, i, num_modules);
-
-        geometry_msgs::Vector3 acc_vec_ros;
-        acc_vec_ros.x = acc_vec(0);
-        acc_vec_ros.y = acc_vec(1);
-        acc_vec_ros.z = acc_vec(2);
-        measurement.accelerometer.push_back(acc_vec_ros);
-        
-        Vector3d gyro_vec = get_gamma(ekf.h_t, i, num_modules);
-
-        geometry_msgs::Vector3 gyro_vec_ros;
-        gyro_vec_ros.x = gyro_vec(0);
-        gyro_vec_ros.y = gyro_vec(1);
-        gyro_vec_ros.z = gyro_vec(2);
-        measurement.gyro.push_back(gyro_vec_ros);
-      }
-      meas_pub.publish(measurement);
-
-      head_imu.header.stamp = ros::Time::now();
-      head_imu_pub.publish(head_imu);
-      */
     }
     
     r.sleep();

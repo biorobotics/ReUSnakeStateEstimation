@@ -8,7 +8,7 @@ titles = ['Roll', 'Pitch', 'Yaw']
 
 vc_rpy = [[], [], []]
 init_yaw = 0
-with open('demo_data_new/roll/vc_estimator_q.txt') as f:
+with open('demo_data_no_angles/slow_sidewind/vc_estimator_q.txt') as f:
   for linenum, line in enumerate(f):
     q = line.split(' ')
     r = R.from_quat([float(e) for e in q[1:]] + [float(q[0])])
@@ -21,58 +21,46 @@ with open('demo_data_new/roll/vc_estimator_q.txt') as f:
       vc_rpy[i].append(rpy[i])
 
 m1_rpy = [[], [], []]
-with open('demo_data_new/roll/m1_estimator_q.txt') as f:
-  try:
-    for linenum, line in enumerate(f):
-      q = line.split(' ')
-      r = R.from_quat([float(e) for e in q[1:]] + [float(q[0])])
-      if linenum == 0:
-        rpy = r.as_euler('xyz', degrees=True)
-        init_yaw = rpy[2]
+with open('demo_data_no_angles/slow_sidewind/m1_estimator_q.txt') as f:
+  for linenum, line in enumerate(f):
+    q = line.split(' ')
+    r = R.from_quat([float(e) for e in q[1:]] + [float(q[0])])
+    if linenum == 0:
       rpy = r.as_euler('xyz', degrees=True)
-      rpy[2] = (rpy[2] - init_yaw + 180)%360 - 180
-      for i in range(3):
-        m1_rpy[i].append(rpy[i])
-
-  except Exception:
-    pass
+      init_yaw = rpy[2]
+    rpy = r.as_euler('xyz', degrees=True)
+    rpy[2] = (rpy[2] - init_yaw + 180)%360 - 180
+    for i in range(3):
+      m1_rpy[i].append(rpy[i])
 
 vins_rpy = [[], [], []]
-with open('demo_data_new/roll/vins_q.txt') as f:
-  try:
-    for linenum, line in enumerate(f):
-      q = line.split(' ')
-      r = R.from_quat([float(e) for e in q[1:]] + [float(q[0])])
-      if linenum == 0:
-        rpy = r.as_euler('xyz', degrees=True)
-        init_yaw = rpy[2]
+with open('demo_data_no_angles/slow_sidewind/vins_q.txt') as f:
+  for linenum, line in enumerate(f):
+    q = line.split(' ')
+    r = R.from_quat([float(e) for e in q[1:]] + [float(q[0])])
+    if linenum == 0:
       rpy = r.as_euler('xyz', degrees=True)
-      rpy[2] = (rpy[2] - init_yaw + 180)%360 - 180
-      for i in range(3):
-        vins_rpy[i].append(rpy[i])
-
-  except Exception:
-    pass
+      init_yaw = rpy[2]
+    rpy = r.as_euler('xyz', degrees=True)
+    rpy[2] = (rpy[2] - init_yaw + 180)%360 - 180
+    for i in range(3):
+      vins_rpy[i].append(rpy[i])
 
 complementary_rpy = [[], [], []]
-with open('demo_data_new/roll/complementary_q.txt') as f:
-  try:
-    for linenum, line in enumerate(f):
-      q = line.split(' ')
-      r = R.from_quat([float(e) for e in q[1:]] + [float(q[0])])
-      if linenum == 0:
-        rpy = r.as_euler('xyz', degrees=True)
-        init_yaw = rpy[2]
+with open('demo_data_no_angles/slow_sidewind/complementary_q.txt') as f:
+  for linenum, line in enumerate(f):
+    q = line.split(' ')
+    r = R.from_quat([float(e) for e in q[1:]] + [float(q[0])])
+    if linenum == 0:
       rpy = r.as_euler('xyz', degrees=True)
-      rpy[2] = (rpy[2] - init_yaw + 180)%360 - 180
-      for i in range(3):
-        complementary_rpy[i].append(rpy[i])
-
-  except Exception:
-    pass
+      init_yaw = rpy[2]
+    rpy = r.as_euler('xyz', degrees=True)
+    rpy[2] = (rpy[2] - init_yaw + 180)%360 - 180
+    for i in range(3):
+      complementary_rpy[i].append(rpy[i])
 
 fig, (ax1, ax2, ax3) = plt.subplots(3)
-fig.suptitle('Head Orientation Estimate for Fast Sidewind Gait')
+fig.suptitle('Head Orientation Estimate for Slow Sidewind Gait')
 plt.xlabel('Time (s)')
 
 length = len(m1_rpy[0])

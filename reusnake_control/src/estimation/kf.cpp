@@ -41,34 +41,32 @@ vector<size_t> sort_indices(const vector<double> &v) {
 // Detect outlier IMU measurements and set their entries in R to a very large value
 void detect_outliers(MatrixXd& R, const MatrixXd& inn_cov, const VectorXd sensor_diff,
                      size_t sensorlen, size_t num_modules) {
-  size_t sensorlen_short = sensorlen - num_modules;
   size_t sensornum = 2*num_modules; // one gyro and one accelerometer per module
-  VectorXd sensor_diff_short = sensor_diff.tail(sensorlen_short);
 
-  LLT<MatrixXd> inn_cov_llt = inn_cov.block(num_modules, num_modules, sensorlen_short, sensorlen_short).llt();
+  LLT<MatrixXd> inn_cov_llt = inn_cov.llt();
 
   // Vector whose ith element is the Mahalanobis distance when ith sensor is eliminated
   vector<double> ds(sensornum); 
   for (size_t s = 0; s < sensornum; s++) {
     size_t mblock_size = s*3;
     size_t nblock_start = s*3 + 3;
-    size_t nblock_size = sensorlen_short - mblock_size - 3;
+    size_t nblock_size = sensorlen - mblock_size - 3;
     
     // Matrix that moves ith sensor from residual to the end
-    MatrixXd G_s = MatrixXd::Zero(sensorlen_short, sensorlen_short);
+    MatrixXd G_s = MatrixXd::Zero(sensorlen, sensorlen);
     G_s.block(0, 0, mblock_size, mblock_size).setIdentity();
     G_s.block(mblock_size, nblock_start, nblock_size, nblock_size).setIdentity();
-    G_s.block<3, 3>(sensorlen_short - 3, mblock_size).setIdentity();
+    G_s.block<3, 3>(sensorlen - 3, mblock_size).setIdentity();
 
-    VectorXd sensor_diff_elim(sensorlen_short - 3); // sensor difference with ith sensor eliminated
-    sensor_diff_elim.head(mblock_size) = sensor_diff_short.head(mblock_size);
-    sensor_diff_elim.tail(nblock_size) = sensor_diff_short.tail(nblock_size);
+    VectorXd sensor_diff_elim(sensorlen - 3); // sensor difference with ith sensor eliminated
+    sensor_diff_elim.head(mblock_size) = sensor_diff.head(mblock_size);
+    sensor_diff_elim.tail(nblock_size) = sensor_diff.tail(nblock_size);
 
     MatrixXd S_prime_inv = G_s*inn_cov_llt.solve(G_s.transpose());
 
-    MatrixXd A = S_prime_inv.block(0, 0, sensorlen_short - 3, sensorlen_short - 3);
-    MatrixXd B = S_prime_inv.block(0, sensorlen_short - 3, sensorlen_short - 3, 3);
-    Matrix3d C = S_prime_inv.block<3, 3>(sensorlen_short - 3, sensorlen_short - 3);
+    MatrixXd A = S_prime_inv.block(0, 0, sensorlen - 3, sensorlen - 3);
+    MatrixXd B = S_prime_inv.block(0, sensorlen - 3, sensorlen - 3, 3);
+    Matrix3d C = S_prime_inv.block<3, 3>(sensorlen - 3, sensorlen - 3);
 
     // Inverse of the innovation covariance when the ith sensor is eliminated
     MatrixXd inn_cov_elim_inv = A - B*C.inverse()*B.transpose();
@@ -96,13 +94,14 @@ void detect_outliers(MatrixXd& R, const MatrixXd& inn_cov, const VectorXd sensor
     size_t s = indices[i];
     double w = pow(ds[s] - mean_d, 2)/var_d;
     if (w > outlier_threshold) {
-      size_t j = num_modules + 3*s;
+      size_t j = 3*s;
       R.block<3, 3>(j, j) = 1000000*Matrix3d::Identity();
     }
   }
 }
 
-void KF::initialize(size_t modules, short _body_frame_module, const VectorXd& z_t) {
+void KF::initialize(size_t modules, short _body_frame_module, const VectorXd& z_t,
+                    const VectorXd& joints) {
   num_modules = modules;
   body_frame_module = _body_frame_module;
 
@@ -112,7 +111,11 @@ void KF::initialize(size_t modules, short _body_frame_module, const VectorXd& z_
   x_t = VectorXd::Zero(statelen);
   h_t = VectorXd::Zero(sensorlen);
 
-  vc = init_state(x_t, z_t, num_modules, body_frame_module);
+  for (size_t i = 0; i < num_modules; i++) {
+    angles.push_back(joints(i));
+  }
+
+  vc = init_state(x_t, z_t, num_modules, body_frame_module, angles);
 }
 
 void EKF::predict(const VectorXd& u_t, double _dt) {
@@ -124,8 +127,8 @@ void EKF::predict(const VectorXd& u_t, double _dt) {
   // Previous state
   VectorXd x_t_1(x_t);
   
-  f(x_t, x_t_1, u_t, dt, num_modules, body_frame_module, vc);
-  df(F_t, x_t_1, u_t, dt, num_modules, body_frame_module, vc);
+  f(x_t, x_t_1, u_t, dt, num_modules, body_frame_module, vc, angles);
+  df(F_t, x_t_1, u_t, dt, num_modules, body_frame_module, vc, angles);
 
   S_t = F_t*S_t*F_t.transpose() + Q;
 }
@@ -133,8 +136,8 @@ void EKF::predict(const VectorXd& u_t, double _dt) {
 void EKF::correct(const VectorXd& z_t) {
   MatrixXd H_t(sensorlen, statelen - 1); // Jacobian for sensor model
 
-  dh(H_t, x_t, dt, num_modules, body_frame_module, vc);
-  vc = h(h_t, x_t, dt, num_modules, body_frame_module, vc);
+  dh(H_t, x_t, dt, num_modules, body_frame_module, vc, angles);
+  vc = h(h_t, x_t, dt, num_modules, body_frame_module, vc, angles);
 
   // Compute difference between predicted measurement and actual
   VectorXd sensor_diff = z_t - h_t;
@@ -194,6 +197,7 @@ void EKF::correct(const VectorXd& z_t) {
   R = old_R;
 }
 
+/* Note, UKF is not currently implemented. This is just EKF code */
 void UKF::predict(const VectorXd& u_t, double _dt) {
   dt = _dt;
 
@@ -203,8 +207,8 @@ void UKF::predict(const VectorXd& u_t, double _dt) {
   // Previous state
   VectorXd x_t_1(x_t);
   
-  f(x_t, x_t_1, u_t, dt, num_modules, body_frame_module, vc);
-  df(F_t, x_t_1, u_t, dt, num_modules, body_frame_module, vc);
+  f(x_t, x_t_1, u_t, dt, num_modules, body_frame_module, vc, angles);
+  df(F_t, x_t_1, u_t, dt, num_modules, body_frame_module, vc, angles);
 
   S_t = F_t*S_t*F_t.transpose() + Q;
 }
@@ -217,13 +221,13 @@ void UKF::correct(const VectorXd& z_t) {
   dh(H_t, x_t, dt, num_modules, body_frame_module, vc);
   */
 
-  vc = h(h_t, x_t, 0.0001, num_modules, body_frame_module, vc);
-  dh(H_t, x_t, 0.0001, num_modules, body_frame_module, vc);
+  vc = h(h_t, x_t, 0.0001, num_modules, body_frame_module, vc, angles);
+  dh(H_t, x_t, 0.0001, num_modules, body_frame_module, vc, angles);
 
   // Compute difference between predicted measurement and actual
   VectorXd sensor_diff = z_t - h_t;
   
-  MatrixXd old_R = R.block(0, 0, sensorlen, sensorlen);
+  MatrixXd old_R(R);
   for (size_t i = 0; i < sensorlen; i++) {
     if (isnan(z_t(i))) {
       R(i, i) = 1000000;
