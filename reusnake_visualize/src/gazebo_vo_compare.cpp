@@ -80,14 +80,6 @@ Matrix3d rotZ(double angle){
   return rot;
 }
 
-void signalHandler( int signum ) {
-  file.close();
-  file1.close();
-  file2.close();
-  file3.close();
-  exit(signum);
-}
-
 void handle_gazebo(gazebo_msgs::LinkStates msg) {
   for (size_t i = 0; i < msg.pose.size(); i++) {
     if (msg.name[i] == "robot::kdl_dummy_root") {
@@ -117,17 +109,8 @@ int main(int argc, char **argv) {
   ros::init(argc, argv, "comparison");
   ros::NodeHandle n;
 
-  /*
-  file.open("gazebo_q.txt");
-  file1.open("vo_q.txt");
-  file2.open("gazebo_position.txt");
-  file3.open("vo_position.txt");
-  */
-
   ros::Subscriber gazebo_sub = n.subscribe<gazebo_msgs::LinkStates>("/gazebo/link_states", 1, handle_gazebo);
   tf::TransformListener tf_listener;
-
-  signal(SIGINT, signalHandler);
 
   tf2_ros::TransformBroadcaster br;
   geometry_msgs::TransformStamped gazebo_tf;
@@ -175,13 +158,6 @@ int main(int argc, char **argv) {
         vo_tf_pub.transform.rotation.y = vo_rot.y();
         vo_tf_pub.transform.rotation.z = vo_rot.z();
         br.sendTransform(vo_tf_pub);
-
-        /*
-        file << gazebo_rot.w() << " " << gazebo_rot.x() << " " << gazebo_rot.y() << " " << gazebo_rot.z() << "\n";
-        file1 << vo_rot.w() << " " << vo_rot.x() << " " << vo_rot.y() << " " << vo_rot.z() << "\n";
-        file2 << gazebo_pos(0) << " " << gazebo_pos(1) << " " << gazebo_pos(2) << "\n";
-        file3 << vo_pos(0) << " " << vo_pos(1) << " " << vo_pos(2) << "\n";
-        */
       }
       catch (tf::TransformException ex){
         ROS_ERROR("%s",ex.what());

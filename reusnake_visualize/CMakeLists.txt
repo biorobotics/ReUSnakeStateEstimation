@@ -57,3 +57,6 @@ target_link_libraries( visualizer
                           ${orocos_kdl_LIBRARIES}
                           ${catkin_LIBRARIES} 
                           )
+
+add_executable(gazebo_vo_compare src/gazebo_vo_compare.cpp)
+target_link_libraries(gazebo_vo_compare ${catkin_LIBRARIES})
