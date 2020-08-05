@@ -28,6 +28,7 @@ static const double epsilon = 0.000001;
 
 static const double module_rad = 0.026; 
 static const double zthresh = 0.0075; // for motion model
+static const double delta = 1;
 
 // Get state transition matrix for quaternion
 void quaternion_stm(Matrix4d& stm, const Vector3d& w_t, double dt) {
@@ -199,7 +200,7 @@ Vector3d get_body_displacement(const vector<double>& angles, const vector<double
     double diff = zi[i] - z_min;
     double gamma_i = (diff < zthresh) ? (1 - diff/zthresh) : 0;
 
-    wi[i] = (1 - exp(-gamma_i))/(1 - exp(-1));
+    wi[i] = (1 - exp(-delta*gamma_i))/(1 - exp(-delta));
     wsum += wi[i];
   }
 
@@ -248,6 +249,7 @@ void f(VectorXd& x_t, const VectorXd& x_t_1, const VectorXd& u_t,
   
     set_theta_dot(x_t, i,
                   lambda*u_t(i) + (1 - lambda)*prev_theta_dot);
+    prev_angles[i] -= get_theta_dot(x_t, i, num_modules)*dt;
   }
 
   if (body_frame_module < 0) {
@@ -382,6 +384,8 @@ Matrix4d h(VectorXd& z_t, const VectorXd& x_t, double dt, size_t num_modules,
 * dt: time step
 * num_modules: number of modules in the snake
 * body_frame_module: module to use as body frame. If -1, use virtual chassis
+* prev_vc: virtual chassis before prediction
+* angles: 
 */
 void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
         size_t num_modules, short body_frame_module, Matrix4d& prev_vc,
@@ -396,7 +400,7 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
   if (body_frame_module < 0) {
     vector<double> prev_angles(angles);
     for (size_t i = 0; i < num_modules; i++) {
-      prev_angles[i] -= get_theta_dot(x_t_1, i, num_modules)*dt;
+      prev_angles[i] -= (lambda*u_t(i) + (1 - lambda)*get_theta_dot(x_t_1, i, num_modules))*dt;
     }
 
     // Jacobian of position wrt error angle via chain rule
@@ -431,13 +435,13 @@ void df(MatrixXd& F_t, const VectorXd& x_t_1, const VectorXd& u_t, double dt,
 
     Quaterniond q(q_t_1(0), q_t_1(1), q_t_1(2), q_t_1(3));
     Matrix3d R = q.toRotationMatrix();
-    // Numerical Jacobian wrt angular velocities
+    // Numerical Jacobian wrt joint velocities
     for (size_t i = 0; i < num_modules; i++) {
       vector<double> prev_angles_plus(prev_angles);
       vector<double> prev_angles_minus(prev_angles);
 
-      prev_angles_plus[i] -= epsilon*dt;
-      prev_angles_minus[i] += epsilon*dt;
+      prev_angles_plus[i] -= (1 - lambda)*epsilon*dt;
+      prev_angles_minus[i] += (1 - lambda)*epsilon*dt;
 
       Vector3d disp_plus = get_body_displacement(angles, prev_angles_plus, R,
                                                  num_modules, prev_vc);
