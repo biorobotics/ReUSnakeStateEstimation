@@ -10,15 +10,9 @@
 #include <iostream> 
 #include <fstream>
 #include <cmath>
-#include <signal.h>
 #include <tf2_ros/transform_broadcaster.h>
 
 using namespace Eigen;
-
-static std::ofstream file;
-static std::ofstream file1;
-static std::ofstream file2;
-static std::ofstream file3;
 
 static bool first_tf = true;
 static bool first_gazebo = true;
