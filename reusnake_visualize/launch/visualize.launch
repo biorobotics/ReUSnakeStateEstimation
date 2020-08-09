@@ -3,5 +3,6 @@
 
   <node name="visualizer" pkg="reusnake_visualize" type="visualizer" />  
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(arg rvizconfig)" required="true" />
+  <node name="gazebo_vo_compare" pkg="reusnake_visualize" type="gazebo_vo_compare" />  
 
 </launch>
