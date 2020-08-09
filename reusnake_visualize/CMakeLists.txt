@@ -60,3 +60,6 @@ target_link_libraries( visualizer
 
 add_executable(gazebo_vo_compare src/gazebo_vo_compare.cpp)
 target_link_libraries(gazebo_vo_compare ${catkin_LIBRARIES})
+
+add_executable(gazebo_vio_compare src/gazebo_vio_compare.cpp)
+target_link_libraries(gazebo_vio_compare ${catkin_LIBRARIES})
