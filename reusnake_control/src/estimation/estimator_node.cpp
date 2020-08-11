@@ -17,7 +17,7 @@
 
 using namespace Eigen;
 
-static const size_t num_modules = 12;
+static const size_t num_modules = 16;
 static const double dt = 1.0/50;
 
 size_t statelen;
@@ -33,7 +33,6 @@ static ros::Publisher joint_pub;
 static sensor_msgs::JointState joint_state;
 static geometry_msgs::TransformStamped head_frame;
 static geometry_msgs::TransformStamped body_frame;
-static ros::Publisher pose_pub;
 static geometry_msgs::PoseWithCovarianceStamped head_pose;
 
 static short body_frame_module;
@@ -144,7 +143,6 @@ int main(int argc, char **argv) {
   body_frame.transform.translation.z = 0;
 
   joint_pub = n.advertise<sensor_msgs::JointState>("/reusnake/joint_state", 1);
-  pose_pub = n.advertise<geometry_msgs::PoseWithCovarianceStamped>("/reusnake/head_pose", 2);
 
   vector<ros::Subscriber> imu_subs;
   ros::Subscriber joint_sub = n.subscribe<sensor_msgs::JointState>("/snake/joint_states", 1, handle_joints); 
@@ -218,11 +216,7 @@ int main(int argc, char **argv) {
       body_frame.transform.translation.y = p_t(1);
       body_frame.transform.translation.z = p_t(2);
 
-      Vector3d t_head_world = q_body_world.toRotationMatrix()*T_head_body.block<3, 1>(0, 3);
-      t_head_world += p_t;
-      head_pose.pose.pose.position.x = t_head_world(0);
-      head_pose.pose.pose.position.y = t_head_world(1);
-      head_pose.pose.pose.position.z = t_head_world(2);
+      Vector3d t_head_world = q_body_world.toRotationMatrix()*T_head_body.block<3, 1>(0, 3) + p_t;
 
       head_frame.transform.rotation.w = q_head_body.w();
       head_frame.transform.rotation.x = q_head_body.x();
@@ -231,28 +225,6 @@ int main(int argc, char **argv) {
       head_frame.transform.translation.x = T_head_body(0, 3);
       head_frame.transform.translation.y = T_head_body(1, 3);
       head_frame.transform.translation.z = T_head_body(2, 3);
-
-      // Marginalization via Schur complement
-      MatrixXd A(ekf.S_t.block<6, 6>(0, 0));
-      MatrixXd B(ekf.S_t.block(6, 6, statelen - 7, statelen - 7));
-      MatrixXd C(ekf.S_t.block(6, 0, statelen - 7, 6));
-      MatrixXd new_S = A - C.transpose()*B.llt().solve(C);
-
-      Quaterniond q_head_world = q_body_world*q_head_body;
-
-      head_pose.pose.pose.orientation.w = q_head_world.w();
-      head_pose.pose.pose.orientation.x = q_head_world.x();
-      head_pose.pose.pose.orientation.y = q_head_world.y();
-      head_pose.pose.pose.orientation.z = q_head_world.z();
-
-      for (size_t row = 0; row < 6; row++) {
-        for (size_t col = 0; col < 6; col++) {
-          head_pose.pose.covariance[6*row + col] = new_S(row, col);
-        }
-      }
-
-      head_pose.header.stamp = ros::Time::now();
-      pose_pub.publish(head_pose);
 
       head_frame.header.stamp = ros::Time::now();
       pose_br.sendTransform(head_frame);
