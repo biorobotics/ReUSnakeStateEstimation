@@ -30,8 +30,6 @@ find_package(catkin REQUIRED COMPONENTS
   hebiros
   tf2_kdl
   tf2_ros
-  cv_bridge
-  OpenCV
 )
 
 catkin_package(
