@@ -1,6 +1,9 @@
 <launch>
   <arg name="rvizconfig" default="$(find reusnake_visualize)/rviz/reusnake.rviz" />
 
+  <arg name="use_sim_time" default="false" />
+  <param name="use_sim_time" type="bool" value="$(arg use_sim_time)" />
+
   <node name="visualizer" pkg="reusnake_visualize" type="visualizer" />  
   <node name="rviz" pkg="rviz" type="rviz" args="-d $(arg rvizconfig)" required="true" />
   <node name="gazebo_vo_compare" pkg="reusnake_visualize" type="gazebo_vo_compare" />  
