@@ -100,8 +100,6 @@ target_link_libraries(complementary_node ${catkin_LIBRARIES})
 target_link_libraries(comparison_node ${catkin_LIBRARIES})
 		  add_executable(imu_compare src/estimation/imu_compare.cpp)
 target_link_libraries(imu_compare ${catkin_LIBRARIES})
-		  add_executable(imu_capture src/estimation/imu_capture.cpp)
-target_link_libraries(imu_capture ${catkin_LIBRARIES})
 
 add_executable(dummy_snake src/estimation/dummy_snake.cpp)
 target_link_libraries(dummy_snake ${catkin_LIBRARIES})
