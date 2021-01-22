@@ -26,12 +26,11 @@ find_package(catkin REQUIRED COMPONENTS
   roslib
   geometry_msgs
 
-  hebi_cpp_api # hebi cpp api to replace code  
+  hebi_cpp_api
   hebiros
   tf2_kdl
   tf2_ros
   cv_bridge
-  OpenCV
 )
 
 catkin_package(
